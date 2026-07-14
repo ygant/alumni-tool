@@ -71,7 +71,11 @@ export default function SignUp() {
               className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
             >
               <option value="Alumni">Alumni</option>
-              <option value="Current Student">Current Student</option>
+              <option value="Undergraduate Student">
+                Undergraduate Student
+              </option>
+              <option value="Graduate Student">Graduate Student</option>
+              <option value="PhD Student">PhD Student</option>
             </select>
           </div>
 
