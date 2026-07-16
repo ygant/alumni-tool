@@ -3,17 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api";
+import { SubmitEvent } from "react";
 
 export default function SignUp() {
   const router = useRouter();
   const [form, setForm] = useState({
-    classification: "",
+    classification: "Alumni",
     name: "",
     email: "",
-    year: "",
-    degree: "",
     password: "",
     confirmPassword: "",
+    degree_level: "Undergraduate",
+    degree_name: "",
+    year_conferred: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -22,7 +24,7 @@ export default function SignUp() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
@@ -40,9 +42,10 @@ export default function SignUp() {
           classification: form.classification,
           name: form.name,
           email: form.email,
-          year: form.year,
-          degree: form.degree,
           password: form.password,
+          degree_level: form.degree_level,
+          degree_name: form.degree_name,
+          year_conferred: form.year_conferred,
         }),
       });
       router.push("/login");
@@ -104,32 +107,46 @@ export default function SignUp() {
               className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
             />
           </div>
+          <div>
+            <label className="block text-lg font-medium text-gray-800 mb-1">
+              Degree Level
+            </label>
+            <select
+              value={form.degree_level}
+              onChange={(e) => handleChange("degree_level", e.target.value)}
+              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+            >
+              <option value="Undergraduate">Undergraduate</option>
+              <option value="Graduate">Graduate</option>
+              <option value="PhD">PhD</option>
+            </select>
+          </div>
 
           <div>
             <label className="block text-lg font-medium text-gray-800 mb-1">
-              Graduation Year
+              Degree / Major
             </label>
             <input
               type="text"
               required
-              value={form.year}
-              onChange={(e) => handleChange("year", e.target.value)}
+              value={form.degree_name}
+              onChange={(e) => handleChange("degree_name", e.target.value)}
               className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
-              placeholder="e.g. 1998"
+              placeholder="e.g. Biological and Agricultural Engineering"
             />
           </div>
 
           <div>
             <label className="block text-lg font-medium text-gray-800 mb-1">
-              Degree
+              Year Conferred
             </label>
             <input
               type="text"
               required
-              value={form.degree}
-              onChange={(e) => handleChange("degree", e.target.value)}
+              value={form.year_conferred}
+              onChange={(e) => handleChange("year_conferred", e.target.value)}
               className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
-              placeholder="e.g. Business Administration"
+              placeholder="e.g. 1998"
             />
           </div>
 

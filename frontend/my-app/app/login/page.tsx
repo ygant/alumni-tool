@@ -25,9 +25,10 @@ export default function Login() {
           body: JSON.stringify({ email, password }),
         },
       );
-      // For now just confirm login worked — session/auth wiring comes later
-      alert(`Welcome back, ${user.name}!`);
-      router.push("/");
+
+      localStorage.setItem("alumniId", String(user.id));
+      localStorage.setItem("alumniName", user.name);
+      router.push("/profile");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
