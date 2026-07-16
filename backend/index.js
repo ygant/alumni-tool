@@ -129,7 +129,7 @@ router.post("/alumni", async (req, res) => {
   }
 });
 
-// ---------- Log in ----------
+// Log in
 router.post("/alumni/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -166,7 +166,7 @@ router.post("/alumni/login", async (req, res) => {
   }
 });
 
-// ---------- Update profile (everything except password/email/classification) ----------
+// Update profile
 router.put("/alumni/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -241,7 +241,7 @@ router.put("/alumni/:id", async (req, res) => {
   }
 });
 
-// ---------- Add a degree ----------
+// Add a degree
 router.post("/alumni/:id/degrees", async (req, res) => {
   const { id } = req.params;
   const { degree_level, degree_name, year_conferred } = req.body;
@@ -266,7 +266,7 @@ router.post("/alumni/:id/degrees", async (req, res) => {
   }
 });
 
-// ---------- Remove a degree ----------
+// Remove a degree
 router.delete("/alumni/:id/degrees/:degreeId", async (req, res) => {
   const { id, degreeId } = req.params;
   try {
