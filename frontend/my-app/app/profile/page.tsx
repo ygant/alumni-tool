@@ -63,6 +63,7 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<string[]>([]);
 
   const [form, setForm] = useState({
     company: "",
@@ -100,7 +101,10 @@ export default function ProfilePage() {
 
     const loadProfile = async () => {
       try {
-        const data = await fetchJson<Profile>(`/api/alumni/${id}`);
+        const [data, companyList] = await Promise.all([
+          fetchJson<Profile>(`/api/alumni/${id}`),
+          fetchJson<string[]>(`/api/companies`),
+        ]);
         setForm({
           company: blankIfNull(data.company),
           job_title: blankIfNull(data.job_title),
@@ -118,6 +122,7 @@ export default function ProfilePage() {
           bio: blankIfNull(data.bio),
         });
         setDegrees(data.degrees);
+        setCompanies(companyList);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load your profile.",
@@ -353,10 +358,17 @@ export default function ProfilePage() {
                 </label>
                 <input
                   type="text"
+                  list="company-options"
                   value={form.company}
                   onChange={(e) => handleChange("company", e.target.value)}
                   className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+                  placeholder="Start typing to search existing companies..."
                 />
+                <datalist id="company-options">
+                  {companies.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label className="block text-lg font-medium text-gray-800 mb-1">

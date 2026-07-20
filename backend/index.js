@@ -341,4 +341,17 @@ router.get("/admin/alumni", async (req, res) => {
   }
 });
 
+// Getting every distinct company available for dropdown
+router.get("/companies", async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT DISTINCT company FROM alumni WHERE company IS NOT NULL AND TRIM(company) != '' ORDER BY company`,
+    );
+    res.json(result.rows.map((r) => r.company));
+  } catch (err) {
+    console.error("Error fetching companies", err);
+    res.status(500).json({ error: "Internal Server Error " });
+  }
+});
+
 module.exports = router;
