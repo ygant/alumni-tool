@@ -71,7 +71,7 @@ export default function SignUp() {
             <select
               value={form.classification}
               onChange={(e) => handleChange("classification", e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             >
               <option value="Alumni">Alumni</option>
               <option value="Undergraduate Student">
@@ -91,7 +91,7 @@ export default function SignUp() {
               required
               value={form.name}
               onChange={(e) => handleChange("name", e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             />
           </div>
 
@@ -104,7 +104,7 @@ export default function SignUp() {
               required
               value={form.email}
               onChange={(e) => handleChange("email", e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             />
           </div>
           <div>
@@ -114,7 +114,7 @@ export default function SignUp() {
             <select
               value={form.degree_level}
               onChange={(e) => handleChange("degree_level", e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             >
               <option value="Undergraduate">Undergraduate</option>
               <option value="Graduate">Graduate</option>
@@ -131,7 +131,7 @@ export default function SignUp() {
               required
               value={form.degree_name}
               onChange={(e) => handleChange("degree_name", e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
               placeholder="e.g. Biological and Agricultural Engineering"
             />
           </div>
@@ -145,7 +145,7 @@ export default function SignUp() {
               required
               value={form.year_conferred}
               onChange={(e) => handleChange("year_conferred", e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
               placeholder="e.g. 1998"
             />
           </div>
@@ -159,7 +159,7 @@ export default function SignUp() {
               required
               value={form.password}
               onChange={(e) => handleChange("password", e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             />
           </div>
 
@@ -172,7 +172,7 @@ export default function SignUp() {
               required
               value={form.confirmPassword}
               onChange={(e) => handleChange("confirmPassword", e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             />
           </div>
 

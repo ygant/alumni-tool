@@ -251,7 +251,7 @@ export default function ProfilePage() {
         <p className="text-green-700 text-lg font-medium mb-4">{saveMessage}</p>
       )}
 
-      {/* ---------- Degrees ---------- */}
+      {/* Degrees */}
       <section className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">My Degrees</h2>
 
@@ -348,7 +348,7 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* ---------- Optional profile fields ---------- */}
+      {/* Optional Fields*/}
       <div className="flex flex-col gap-6">
         <section className="border-2 border-gray-200 rounded-md p-5">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
