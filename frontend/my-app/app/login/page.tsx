@@ -17,18 +17,21 @@ export default function Login() {
     setSubmitting(true);
 
     try {
-      const user = await fetchJson<{ id: number; name: string }>(
-        "/api/alumni/login",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        },
-      );
+      const user = await fetchJson<{
+        id: number;
+        name: string;
+        isAdmin: boolean;
+      }>("/api/alumni/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
       localStorage.setItem("alumniId", String(user.id));
       localStorage.setItem("alumniName", user.name);
-      router.push("/profile");
+      localStorage.setItem("isAdmin", String(user.isAdmin));
+
+      router.push(user.isAdmin ? "/admin" : "/profile");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {

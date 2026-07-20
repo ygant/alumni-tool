@@ -22,7 +22,22 @@ const INDUSTRY_CATEGORIES = [
   "Other",
 ];
 
-// Get everyone (for display / admin purposes) — never send password back
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+// Checks server-side for admin based on database, don't trust isAdmin flag alone
+async function isAdminRequester(requesterId) {
+  if (!requesterId) return false;
+  const result = await db.query(`SELECT email FROM alumni WHERE id = $1`, [
+    requesterId,
+  ]);
+  if (result.rows.length === 0) return false;
+  return ADMIN_EMAILS.includes(result.rows[0].email.toLowerCase());
+}
+
+// Directory Listing
 router.get("/alumni", async (req, res) => {
   try {
     const result = await db.query(
@@ -36,7 +51,7 @@ router.get("/alumni", async (req, res) => {
   }
 });
 
-// Profile
+// ---------- Single profile (with degrees) ----------
 router.get("/alumni/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -159,14 +174,17 @@ router.post("/alumni/login", async (req, res) => {
     }
 
     delete user.password;
-    res.json(user);
+
+    const isAdmin = ADMIN_EMAILS.includes(user.email.toLowerCase());
+
+    res.json({ ...user, isAdmin });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-// Update profile
+// Update Profile
 router.put("/alumni/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -241,7 +259,7 @@ router.put("/alumni/:id", async (req, res) => {
   }
 });
 
-// Add a degree
+// ---------- Add / remove degrees ----------
 router.post("/alumni/:id/degrees", async (req, res) => {
   const { id } = req.params;
   const { degree_level, degree_name, year_conferred } = req.body;
@@ -266,7 +284,6 @@ router.post("/alumni/:id/degrees", async (req, res) => {
   }
 });
 
-// Remove a degree
 router.delete("/alumni/:id/degrees/:degreeId", async (req, res) => {
   const { id, degreeId } = req.params;
   try {
@@ -280,6 +297,46 @@ router.delete("/alumni/:id/degrees/:degreeId", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("Delete degree error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Admin Page
+// requesterId identifies who's asking; we look up their real email in the DB
+// and only proceed if it's on the ADMIN_EMAILS allowlist.
+router.get("/admin/alumni", async (req, res) => {
+  const { requesterId } = req.query;
+
+  try {
+    const allowed = await isAdminRequester(requesterId);
+    if (!allowed) {
+      return res
+        .status(403)
+        .json({ error: "You are not authorized to view this page." });
+    }
+
+    const result = await db.query(
+      `
+      SELECT
+        a.id, a.classification, a.name, a.email, a.company, a.job_title,
+        a.industry_category, a.work_city, a.work_state, a.work_country,
+        a.seeking_internship, a.seeking_fulltime, a.seeking_grad_school, a.open_to_research,
+        COALESCE(
+          STRING_AGG(d.degree_name || ' (' || d.year_conferred || ')', ', ' ORDER BY d.year_conferred),
+          ''
+        ) AS degrees
+      FROM alumni a
+      LEFT JOIN alumni_degrees d ON d.alumni_id = a.id
+      WHERE LOWER(a.email) != ALL($1::text[])
+      GROUP BY a.id
+      ORDER BY a.name
+    `,
+      [ADMIN_EMAILS],
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Admin alumni fetch error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
