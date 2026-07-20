@@ -11,7 +11,7 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
@@ -56,7 +56,7 @@ export default function Login() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-500 rounded-md p-3 focus:outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-200"
             />
           </div>
 
@@ -69,7 +69,7 @@ export default function Login() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full text-lg border-2 border-gray-400 rounded-md p-3"
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-500 rounded-md p-3 focus:outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-200"
             />
           </div>
 
