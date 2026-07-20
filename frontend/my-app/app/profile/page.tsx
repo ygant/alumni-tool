@@ -469,7 +469,7 @@ export default function ProfilePage() {
                 disabled={saving === "Employment"}
                 className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
               >
-                {saving === "Employment" ? "Saving..." : "Save Employment"}
+                {saving === "Employment" ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>
@@ -497,7 +497,7 @@ export default function ProfilePage() {
                 disabled={saving === "Networking"}
                 className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
               >
-                {saving === "Networking" ? "Saving..." : "Save Networking"}
+                {saving === "Networking" ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>
@@ -561,7 +561,7 @@ export default function ProfilePage() {
               disabled={saving === "Career Interests"}
               className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
             >
-              {saving === "Career Interests" ? "Saving..." : "Save Interests"}
+              {saving === "Career Interests" ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </section>
@@ -583,7 +583,7 @@ export default function ProfilePage() {
               disabled={saving === "Bio"}
               className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
             >
-              {saving === "Bio" ? "Saving..." : "Save Bio"}
+              {saving === "Bio" ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </section>
