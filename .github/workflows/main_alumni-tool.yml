@@ -2,7 +2,8 @@ name: Deploy to Azure Web App
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   build-and-deploy:
@@ -30,9 +31,9 @@ jobs:
         run: zip -r release.zip backend frontend startup.sh -x "**/.git/**"
 
       - name: Deploy to Azure Web App
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: Alumni-Tool
-          slot-name: Production
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_97F365B25F8C4EC6908F706AD4EADFB3 }}
           package: release.zip
