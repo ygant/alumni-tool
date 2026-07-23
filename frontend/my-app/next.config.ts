@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
-const backendOrigin = "http://localhost:3001"; // CHANGE THIS ONCE DEPLOYED
+const backendPort = process.env.BACKEND_PORT || 3001;
+const backendOrigin = `http://localhost:${backendPort}`; // CHANGE THIS ONCE DEPLOYED
 
 const nextConfig: NextConfig = {
-  /* config options here */
   async rewrites() {
     return [
       {
