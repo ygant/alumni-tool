@@ -32,6 +32,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: Alumni-Tool
+          app-name: "Alumni-Tool"
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_97F365B25F8C4EC6908F706AD4EADFB3 }}
           package: release.zip
