@@ -66,7 +66,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [savedSection, setSavedSection] = useState<string | null>(null);
   const [companies, setCompanies] = useState<string[]>([]);
   const [cities, setCities] = useState<
     ReturnType<typeof City.getCitiesOfState>
@@ -171,7 +171,7 @@ export default function ProfilePage() {
     if (!alumniId) return;
 
     setSaving(section);
-    setSaveMessage(null);
+    setSavedSection(null);
     setError(null);
 
     try {
@@ -183,7 +183,11 @@ export default function ProfilePage() {
         body: JSON.stringify(form),
       });
 
-      setSaveMessage(`${section} saved successfully.`);
+      setSavedSection(section);
+
+      setTimeout(() => {
+        setSavedSection(null);
+      }, 3000);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to save your information.",
@@ -268,10 +272,6 @@ export default function ProfilePage() {
 
       {error && (
         <p className="text-red-600 text-lg font-medium mb-4">{error}</p>
-      )}
-
-      {saveMessage && (
-        <p className="text-green-700 text-lg font-medium mb-4">{saveMessage}</p>
       )}
 
       {/* Degrees */}
@@ -549,7 +549,13 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex justify-end mt-4">
+            <div className="flex justify-end gap-2 mt-4">
+              {savedSection === "Employment" && (
+                <span className="text-green-700 font-medium flex items-center gap-1 animate-puls">
+                  ✓ Saved
+                </span>
+              )}
+
               <button
                 onClick={(e) => handleSave(e, "Employment")}
                 disabled={saving === "Employment"}
@@ -577,7 +583,13 @@ export default function ProfilePage() {
               className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
               placeholder="https://linkedin.com/in/yourname"
             />
-            <div className="flex justify-end mt-4">
+            <div className="flex justify-end gap-2 mt-4">
+              {savedSection === "Networking" && (
+                <span className="text-green-700 font-medium flex items-center gap-1 animate-puls">
+                  ✓ Saved
+                </span>
+              )}
+
               <button
                 onClick={(e) => handleSave(e, "Networking")}
                 disabled={saving === "Networking"}
@@ -641,7 +653,13 @@ export default function ProfilePage() {
             </label>
           </div>
 
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-end gap-2 mt-4">
+            {savedSection === "Career Interests" && (
+              <span className="text-green-700 font-medium flex items-center gap-1 animate-puls">
+                ✓ Saved
+              </span>
+            )}
+
             <button
               onClick={(e) => handleSave(e, "Career Interests")}
               disabled={saving === "Career Interests"}
@@ -663,7 +681,13 @@ export default function ProfilePage() {
             placeholder="Tell us a bit about yourself..."
           />
 
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-end mt-4 gap-2">
+            {savedSection === "Bio" && (
+              <span className="text-green-700 font-medium flex items-center gap-3 animate-puls">
+                ✓ Saved
+              </span>
+            )}
+
             <button
               onClick={(e) => handleSave(e, "Bio")}
               disabled={saving === "Bio"}
