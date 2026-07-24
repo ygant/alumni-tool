@@ -32,6 +32,7 @@ export default function Login() {
       localStorage.setItem("isAdmin", String(user.isAdmin));
 
       router.push(user.isAdmin ? "/admin" : "/profile");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {

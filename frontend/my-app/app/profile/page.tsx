@@ -109,8 +109,14 @@ export default function ProfilePage() {
     const loadProfile = async () => {
       try {
         const [data, companyList] = await Promise.all([
-          fetchJson<Profile>(`/api/alumni/${id}`),
-          fetchJson<string[]>(`/api/companies`),
+          fetchJson<Profile>(`/api/alumni/${id}`, {
+            cache: "no-store",
+          }),
+          fetchJson<string[]>(`/api/companies`, {
+            next: {
+              revalidate: 3600,
+            },
+          }),
         ]);
         setForm({
           company: blankIfNull(data.company),
@@ -150,7 +156,7 @@ export default function ProfilePage() {
     };
 
     loadProfile();
-  }, [router]);
+  }, []);
 
   const handleChange = (field: string, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }));
