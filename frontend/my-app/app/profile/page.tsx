@@ -130,6 +130,16 @@ export default function ProfilePage() {
         });
         setDegrees(data.degrees);
         setCompanies(companyList);
+
+        if (data.work_country === "United States" && data.work_state) {
+          const selectedState = usStates.find(
+            (s) => s.name === data.work_state,
+          );
+
+          if (selectedState) {
+            setCities(City.getCitiesOfState("US", selectedState.isoCode));
+          }
+        }
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load your profile.",
