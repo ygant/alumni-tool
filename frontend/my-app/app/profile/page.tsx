@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api";
+import { Country, State, City } from "country-state-city";
 
 const INDUSTRY_CATEGORIES = [
   "Agriculture",
@@ -20,6 +21,9 @@ const INDUSTRY_CATEGORIES = [
   "Business & Management",
   "Other",
 ];
+
+const countries = Country.getAllCountries();
+const usStates = State.getStatesOfCountry("US");
 
 interface Degree {
   id: number;
@@ -64,6 +68,9 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [companies, setCompanies] = useState<string[]>([]);
+  const [cities, setCities] = useState<
+    ReturnType<typeof City.getCitiesOfState>
+  >([]);
 
   const [form, setForm] = useState({
     company: "",
@@ -430,36 +437,99 @@ export default function ProfilePage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-lg font-medium text-gray-800 mb-1">
-                  Work City
-                </label>
-                <input
-                  type="text"
-                  value={form.work_city}
-                  onChange={(e) => handleChange("work_city", e.target.value)}
-                  className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-                />
-              </div>
-              <div>
-                <label className="block text-lg font-medium text-gray-800 mb-1">
-                  Work State
-                </label>
-                <input
-                  type="text"
-                  value={form.work_state}
-                  onChange={(e) => handleChange("work_state", e.target.value)}
-                  className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-                />
-              </div>
-              <div>
-                <label className="block text-lg font-medium text-gray-800 mb-1">
                   Work Country
                 </label>
-                <input
-                  type="text"
+                <select
                   value={form.work_country}
-                  onChange={(e) => handleChange("work_country", e.target.value)}
+                  onChange={(e) => {
+                    const country = e.target.value;
+                    handleChange("work_country", country);
+                    handleChange("work_country", country);
+
+                    if (country !== "United States") {
+                      handleChange("work_state", "");
+                      setCities([]);
+                    }
+                  }}
                   className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-                />
+                >
+                  <option value="">Select Country</option>
+                  {countries.map((country) => (
+                    <option key={country.isoCode} value={country.name}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                {form.work_country === "United States" && (
+                  <div>
+                    <label className="block text-lg font-medium text-gray-800 mb-1">
+                      Work State
+                    </label>
+
+                    <select
+                      value={form.work_state}
+                      onChange={(e) => {
+                        const state = e.target.value;
+
+                        handleChange("work_state", state);
+                        handleChange("work_city", "");
+
+                        const selectedState = usStates.find(
+                          (s) => s.name === state,
+                        );
+
+                        if (selectedState) {
+                          setCities(
+                            City.getCitiesOfState("US", selectedState.isoCode),
+                          );
+                        } else {
+                          setCities([]);
+                        }
+                      }}
+                      className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
+                    >
+                      <option value="">Select State</option>
+
+                      {usStates.map((state) => (
+                        <option key={state.isoCode} value={state.name}>
+                          {state.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-lg font-medium text-gray-800 mb-1">
+                  Work City
+                </label>
+
+                {form.work_country === "United States" ? (
+                  <select
+                    value={form.work_city}
+                    onChange={(e) => handleChange("work_city", e.target.value)}
+                    disabled={form.work_state === ""}
+                    className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3 disabled:bg-gray-100"
+                  >
+                    <option value="">Select City</option>
+
+                    {cities.map((city) => (
+                      <option key={city.name} value={city.name}>
+                        {city.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={form.work_city}
+                    onChange={(e) => handleChange("work_city", e.target.value)}
+                    className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+                    placeholder="City"
+                  />
+                )}
               </div>
             </div>
 
