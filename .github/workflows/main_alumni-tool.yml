@@ -28,7 +28,7 @@ jobs:
         run: npm run build
 
       - name: Zip artifact for deployment
-        run: zip -r release.zip backend frontend startup.sh -x "**/.git/**"
+        run: zip -ry release.zip backend frontend startup.sh -x "**/.git/**"
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
