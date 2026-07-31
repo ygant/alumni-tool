@@ -22,7 +22,12 @@ const INDUSTRY_CATEGORIES = [
   "Other",
 ];
 
-const countries = Country.getAllCountries();
+const countries = [...Country.getAllCountries()].sort((a, b) => {
+  if (a.isoCode === "US") return -1;
+  if (b.isoCode === "US") return 1;
+  return a.name.localeCompare(b.name);
+});
+
 const usStates = State.getStatesOfCountry("US");
 
 interface Degree {
@@ -373,7 +378,7 @@ export default function ProfilePage() {
 
       {/* Optional Fields*/}
       <div className="flex flex-col gap-6">
-        <section className="border-2 border-gray-200 rounded-md p-5">
+        <section className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             Current Employment
           </h2>
@@ -459,7 +464,6 @@ export default function ProfilePage() {
                   value={form.work_country}
                   onChange={(e) => {
                     const country = e.target.value;
-                    handleChange("work_country", country);
                     handleChange("work_country", country);
 
                     if (country !== "United States") {
@@ -549,20 +553,20 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 mt-4">
+            <button
+              onClick={(e) => handleSave(e, "Employment")}
+              disabled={saving === "Employment"}
+              className="flex w-fit justify-start gap-2 mt-4 bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+            >
+              {saving === "Employment" ? "Saving..." : "Save Changes"}
+            </button>
+
+            <div className="flex justify-start gap-2 mt-4">
               {savedSection === "Employment" && (
                 <span className="text-green-700 font-medium flex items-center gap-1 animate-puls">
                   ✓ Saved
                 </span>
               )}
-
-              <button
-                onClick={(e) => handleSave(e, "Employment")}
-                disabled={saving === "Employment"}
-                className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
-              >
-                {saving === "Employment" ? "Saving..." : "Save Changes"}
-              </button>
             </div>
           </div>
         </section>
@@ -583,20 +587,21 @@ export default function ProfilePage() {
               className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
               placeholder="https://linkedin.com/in/yourname"
             />
-            <div className="flex justify-end gap-2 mt-4">
+
+            <button
+              onClick={(e) => handleSave(e, "Networking")}
+              disabled={saving === "Networking"}
+              className="flex justify-start gap-2 mt-4 bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+            >
+              {saving === "Networking" ? "Saving..." : "Save Changes"}
+            </button>
+
+            <div className="flex justify-start gap-2 mt-4">
               {savedSection === "Networking" && (
                 <span className="text-green-700 font-medium flex items-center gap-1 animate-puls">
                   ✓ Saved
                 </span>
               )}
-
-              <button
-                onClick={(e) => handleSave(e, "Networking")}
-                disabled={saving === "Networking"}
-                className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
-              >
-                {saving === "Networking" ? "Saving..." : "Save Changes"}
-              </button>
             </div>
           </div>
         </section>
@@ -653,20 +658,20 @@ export default function ProfilePage() {
             </label>
           </div>
 
-          <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={(e) => handleSave(e, "Career Interests")}
+            disabled={saving === "Career Interests"}
+            className="flex justify-start mt-4 gap-2 bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+          >
+            {saving === "Career Interests" ? "Saving..." : "Save Changes"}
+          </button>
+
+          <div className="flex justify-start gap-2 mt-4">
             {savedSection === "Career Interests" && (
               <span className="text-green-700 font-medium flex items-center gap-1 animate-puls">
                 ✓ Saved
               </span>
             )}
-
-            <button
-              onClick={(e) => handleSave(e, "Career Interests")}
-              disabled={saving === "Career Interests"}
-              className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
-            >
-              {saving === "Career Interests" ? "Saving..." : "Save Changes"}
-            </button>
           </div>
         </section>
 
@@ -675,26 +680,38 @@ export default function ProfilePage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Short Bio</h2>
           <textarea
             value={form.bio}
-            onChange={(e) => handleChange("bio", e.target.value)}
+            onChange={(e) => {
+              const text = e.target.value;
+              const words = text.trim() === "" ? [] : text.trim().split(/\s+/);
+
+              if (words.length <= 300) {
+                handleChange("bio", text);
+              }
+            }}
             rows={5}
             className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             placeholder="Tell us a bit about yourself..."
           />
 
-          <div className="flex justify-end mt-4 gap-2">
+          <p className="text-sm text-gray-600 mt-2">
+            {form.bio.trim() === "" ? 0 : form.bio.trim().split(/\s+/).length} /
+            300 words
+          </p>
+
+          <button
+            onClick={(e) => handleSave(e, "Bio")}
+            disabled={saving === "Bio"}
+            className="flex justify-start mt-4 gap-2 bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+          >
+            {saving === "Bio" ? "Saving..." : "Save Changes"}
+          </button>
+
+          <div className="flex justify-start mt-4 gap-2">
             {savedSection === "Bio" && (
               <span className="text-green-700 font-medium flex items-center gap-3 animate-puls">
                 ✓ Saved
               </span>
             )}
-
-            <button
-              onClick={(e) => handleSave(e, "Bio")}
-              disabled={saving === "Bio"}
-              className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
-            >
-              {saving === "Bio" ? "Saving..." : "Save Changes"}
-            </button>
           </div>
         </section>
 
