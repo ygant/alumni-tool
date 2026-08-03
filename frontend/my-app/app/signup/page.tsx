@@ -19,6 +19,7 @@ export default function SignUp() {
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [signupComplete, setSignupComplete] = useState(false);
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -48,13 +49,29 @@ export default function SignUp() {
           year_conferred: form.year_conferred,
         }),
       });
-      router.push("/login");
+      setSignupComplete(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (signupComplete) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+        <div className="w-full max-w-md text-center">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Check Your Email
+          </h1>
+          <p className="text-xl text-gray-700">
+            We've sent a verification link to <strong>{form.email}</strong>.
+            Please click that link before logging in.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">

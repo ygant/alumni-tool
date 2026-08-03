@@ -1,9 +1,16 @@
 var express = require("express");
+var crypto = require("crypto");
 var bcrypt = require("bcrypt");
 var router = express.Router();
 var db = require("./db");
+var {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendMfaCodeEmail,
+} = require("./mailer");
 
 const SALT_ROUNDS = 12;
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
 const INDUSTRY_CATEGORIES = [
   "Agriculture",
@@ -27,7 +34,6 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
-// Checks server-side for admin based on database, don't trust isAdmin flag alone
 async function isAdminRequester(requesterId) {
   if (!requesterId) return false;
   const result = await db.query(`SELECT email FROM alumni WHERE id = $1`, [
@@ -37,7 +43,31 @@ async function isAdminRequester(requesterId) {
   return ADMIN_EMAILS.includes(result.rows[0].email.toLowerCase());
 }
 
-// Directory Listing
+// ---------- Token helpers ----------
+
+function generateUrlToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function generateMfaCode(length = 12) {
+  const charset = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(length);
+  let code = "";
+  for (let i = 0; i < length; i++) {
+    code += charset[bytes[i] % charset.length];
+  }
+  return code;
+}
+
+async function createToken(client, alumniId, type, token, expiresInMs) {
+  const expiresAt = new Date(Date.now() + expiresInMs);
+  await client.query(
+    `INSERT INTO auth_tokens (alumni_id, token, type, expires_at) VALUES ($1, $2, $3, $4)`,
+    [alumniId, token, type, expiresAt],
+  );
+}
+
+// ---------- Directory listing ----------
 router.get("/alumni", async (req, res) => {
   try {
     const result = await db.query(
@@ -51,7 +81,48 @@ router.get("/alumni", async (req, res) => {
   }
 });
 
+// ---------- Verify email ----------
+// MUST COME BEFORE /alumni/:id
+router.get("/alumni/verify-email", async (req, res) => {
+  const { token } = req.query;
+  if (!token) {
+    return res.status(400).json({ error: "Missing verification token." });
+  }
+
+  try {
+    const tokenResult = await db.query(
+      `SELECT id, alumni_id FROM auth_tokens
+       WHERE token = $1 AND type = 'email_verify' AND used = FALSE AND expires_at > NOW()`,
+      [token],
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "This verification link is invalid or has expired." });
+    }
+
+    const { id: tokenId, alumni_id: alumniId } = tokenResult.rows[0];
+
+    await db.query(`UPDATE alumni SET email_verified = TRUE WHERE id = $1`, [
+      alumniId,
+    ]);
+    await db.query(`UPDATE auth_tokens SET used = TRUE WHERE id = $1`, [
+      tokenId,
+    ]);
+
+    res.json({
+      success: true,
+      message: "Your email has been verified. You may now log in.",
+    });
+  } catch (err) {
+    console.error("Email verification error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ---------- Single profile (with degrees) ----------
+// Placed AFTER specific sub-paths like /verify-email
 router.get("/alumni/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -80,7 +151,7 @@ router.get("/alumni/:id", async (req, res) => {
   }
 });
 
-// Sign up
+// ---------- Sign up ----------
 router.post("/alumni", async (req, res) => {
   const {
     classification,
@@ -110,12 +181,13 @@ router.post("/alumni", async (req, res) => {
     await client.query("BEGIN");
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    const normalizedEmail = email.toLowerCase().trim();
 
     const alumniResult = await client.query(
       `INSERT INTO alumni (classification, name, email, password)
        VALUES ($1, $2, $3, $4)
        RETURNING id, classification, name, email`,
-      [classification, name, email.toLowerCase().trim(), hashedPassword],
+      [classification, name, normalizedEmail, hashedPassword],
     );
 
     const alumniId = alumniResult.rows[0].id;
@@ -126,8 +198,28 @@ router.post("/alumni", async (req, res) => {
       [alumniId, degree_level, degree_name, year_conferred],
     );
 
+    const verifyToken = generateUrlToken();
+    await createToken(
+      client,
+      alumniId,
+      "email_verify",
+      verifyToken,
+      24 * 60 * 60 * 1000,
+    );
+
     await client.query("COMMIT");
-    res.status(201).json(alumniResult.rows[0]);
+
+    const verifyLink = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
+    try {
+      await sendVerificationEmail(normalizedEmail, name, verifyLink);
+    } catch (emailErr) {
+      console.error("Failed to send verification email:", emailErr);
+    }
+
+    res.status(201).json({
+      ...alumniResult.rows[0],
+      message: "Please check your email to verify your account.",
+    });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Alumni Creation Error:", err);
@@ -144,7 +236,56 @@ router.post("/alumni", async (req, res) => {
   }
 });
 
-// Log in
+// ---------- Resend verification email ----------
+router.post("/alumni/resend-verification", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Please enter your email address." });
+  }
+
+  const genericMessage = {
+    message:
+      "If an account exists for that email and needs verifying, a new link has been sent.",
+  };
+
+  try {
+    const result = await db.query(
+      `SELECT id, name, email, email_verified FROM alumni WHERE email = $1`,
+      [email.toLowerCase().trim()],
+    );
+
+    if (result.rows.length === 0 || result.rows[0].email_verified) {
+      return res.json(genericMessage);
+    }
+
+    const user = result.rows[0];
+    const verifyToken = generateUrlToken();
+    const client = await db.getClient();
+    try {
+      await client.query("BEGIN");
+      await createToken(
+        client,
+        user.id,
+        "email_verify",
+        verifyToken,
+        24 * 60 * 60 * 1000,
+      );
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+
+    const verifyLink = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
+    await sendVerificationEmail(user.email, user.name, verifyLink);
+
+    res.json(genericMessage);
+  } catch (err) {
+    console.error("Resend verification error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ---------- Log in: step 1 (password check, triggers MFA email) ----------
 router.post("/alumni/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -158,7 +299,7 @@ router.post("/alumni/login", async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT id, classification, name, email, password FROM alumni WHERE email = $1`,
+      `SELECT id, name, email, password, email_verified FROM alumni WHERE email = $1`,
       [email.toLowerCase().trim()],
     );
 
@@ -173,18 +314,190 @@ router.post("/alumni/login", async (req, res) => {
       return res.status(401).json(genericError);
     }
 
-    delete user.password;
+    if (!user.email_verified) {
+      return res.status(403).json({
+        error:
+          "Please verify your email before logging in. Check your inbox for the verification link.",
+        needsVerification: true,
+      });
+    }
 
-    const isAdmin = ADMIN_EMAILS.includes(user.email.toLowerCase());
+    const mfaCode = generateMfaCode();
+    const client = await db.getClient();
+    try {
+      await client.query("BEGIN");
+      await createToken(client, user.id, "mfa", mfaCode, 10 * 60 * 1000);
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
 
-    res.json({ ...user, isAdmin });
+    await sendMfaCodeEmail(user.email, user.name, mfaCode);
+
+    res.json({ mfaRequired: true, alumniId: user.id });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-// Update Profile
+// ---------- Log in: step 2 (verify MFA code) ----------
+router.post("/alumni/verify-mfa", async (req, res) => {
+  const { alumniId, code } = req.body;
+
+  if (!alumniId || !code) {
+    return res.status(400).json({ error: "Please enter your login code." });
+  }
+
+  const genericError = { error: "That code is incorrect or has expired." };
+
+  try {
+    // FIX 1: Pass JavaScript's current time as $2 instead of relying on PostgreSQL's NOW()
+    // This ensures the exact same clock is used for creation and validation.
+    const tokenResult = await db.query(
+      `SELECT id, token, attempts FROM auth_tokens
+       WHERE alumni_id = $1 AND type = 'mfa' AND used = FALSE AND expires_at > $2
+       ORDER BY created_at DESC LIMIT 1`,
+      [alumniId, new Date()],
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(401).json(genericError);
+    }
+
+    const tokenRow = tokenResult.rows[0];
+
+    if (tokenRow.attempts >= 5) {
+      return res.status(429).json({
+        error:
+          "Too many incorrect attempts. Please log in again to get a new code.",
+      });
+    }
+
+    // FIX 2: Add .trim() to tokenRow.token in case your database column pads with spaces
+    if (tokenRow.token.trim() !== code.toUpperCase().trim()) {
+      await db.query(
+        `UPDATE auth_tokens SET attempts = attempts + 1 WHERE id = $1`,
+        [tokenRow.id],
+      );
+      return res.status(401).json(genericError);
+    }
+
+    await db.query(`UPDATE auth_tokens SET used = TRUE WHERE id = $1`, [
+      tokenRow.id,
+    ]);
+
+    const userResult = await db.query(
+      `SELECT id, classification, name, email FROM alumni WHERE id = $1`,
+      [alumniId],
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+
+    const user = userResult.rows[0];
+    const isAdmin = ADMIN_EMAILS.includes(user.email.toLowerCase());
+
+    res.json({ ...user, isAdmin });
+  } catch (err) {
+    console.error("MFA verification error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ---------- Forgot password ----------
+router.post("/alumni/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Please enter your email address." });
+  }
+
+  const genericMessage = {
+    message:
+      "If an account exists for that email, a password reset link has been sent.",
+  };
+
+  try {
+    const result = await db.query(
+      `SELECT id, name, email FROM alumni WHERE email = $1`,
+      [email.toLowerCase().trim()],
+    );
+
+    if (result.rows.length === 0) {
+      return res.json(genericMessage);
+    }
+
+    const user = result.rows[0];
+    const resetToken = generateUrlToken();
+    const client = await db.getClient();
+    try {
+      await client.query("BEGIN");
+      await createToken(
+        client,
+        user.id,
+        "password_reset",
+        resetToken,
+        60 * 60 * 1000,
+      );
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+
+    const resetLink = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
+    await sendPasswordResetEmail(user.email, user.name, resetLink);
+
+    res.json(genericMessage);
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ---------- Reset password ----------
+router.post("/alumni/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+
+  if (!token || !password) {
+    return res.status(400).json({ error: "Missing token or new password." });
+  }
+
+  try {
+    const tokenResult = await db.query(
+      `SELECT id, alumni_id FROM auth_tokens
+       WHERE token = $1 AND type = 'password_reset' AND used = FALSE AND expires_at > $2`,
+      [token, new Date()],
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "This reset link is invalid or has expired." });
+    }
+
+    const { id: tokenId, alumni_id: alumniId } = tokenResult.rows[0];
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+    await db.query(`UPDATE alumni SET password = $1 WHERE id = $2`, [
+      hashedPassword,
+      alumniId,
+    ]);
+    await db.query(`UPDATE auth_tokens SET used = TRUE WHERE id = $1`, [
+      tokenId,
+    ]);
+
+    res.json({
+      success: true,
+      message: "Your password has been updated. You may now log in.",
+    });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ---------- Update profile ----------
 router.put("/alumni/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -301,9 +614,22 @@ router.delete("/alumni/:id/degrees/:degreeId", async (req, res) => {
   }
 });
 
-// Admin Page
-// requesterId identifies who's asking; we look up their real email in the DB
-// and only proceed if it's on the ADMIN_EMAILS allowlist.
+// Companies
+router.get("/companies", async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT DISTINCT company FROM alumni
+       WHERE company IS NOT NULL AND TRIM(company) != ''
+       ORDER BY company`,
+    );
+    res.json(result.rows.map((r) => r.company));
+  } catch (err) {
+    console.error("Error fetching companies:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Admin Directory
 router.get("/admin/alumni", async (req, res) => {
   const { requesterId } = req.query;
 
@@ -330,7 +656,7 @@ router.get("/admin/alumni", async (req, res) => {
       WHERE LOWER(a.email) != ALL($1::text[])
       GROUP BY a.id
       ORDER BY a.name
-    `,
+      `,
       [ADMIN_EMAILS],
     );
 
@@ -338,19 +664,6 @@ router.get("/admin/alumni", async (req, res) => {
   } catch (err) {
     console.error("Admin alumni fetch error:", err);
     res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// Getting every distinct company available for dropdown
-router.get("/companies", async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT DISTINCT company FROM alumni WHERE company IS NOT NULL AND TRIM(company) != '' ORDER BY company`,
-    );
-    res.json(result.rows.map((r) => r.company));
-  } catch (err) {
-    console.error("Error fetching companies", err);
-    res.status(500).json({ error: "Internal Server Error " });
   }
 });
 
