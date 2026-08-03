@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { fetchJson } from "@/lib/api";
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
@@ -37,32 +37,42 @@ export default function VerifyEmailPage() {
   }, [token]);
 
   return (
+    <div className="w-full max-w-md text-center">
+      <h1 className="text-3xl font-bold text-gray-900 mb-4">
+        Email Verification
+      </h1>
+
+      {status === "loading" && (
+        <p className="text-xl text-gray-700">Verifying...</p>
+      )}
+
+      {status === "success" && (
+        <>
+          <p className="text-xl text-green-700 mb-6">{message}</p>
+          <a
+            href="/login"
+            className="inline-block text-xl font-semibold bg-blue-700 text-white rounded-md py-3 px-8 hover:bg-blue-800"
+          >
+            Go to Log In
+          </a>
+        </>
+      )}
+
+      {status === "error" && <p className="text-xl text-red-600">{message}</p>}
+    </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
     <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
-      <div className="w-full max-w-md text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">
-          Email Verification
-        </h1>
-
-        {status === "loading" && (
-          <p className="text-xl text-gray-700">Verifying...</p>
-        )}
-
-        {status === "success" && (
-          <>
-            <p className="text-xl text-green-700 mb-6">{message}</p>
-            <a
-              href="/login"
-              className="inline-block text-xl font-semibold bg-blue-700 text-white rounded-md py-3 px-8 hover:bg-blue-800"
-            >
-              Go to Log In
-            </a>
-          </>
-        )}
-
-        {status === "error" && (
-          <p className="text-xl text-red-600">{message}</p>
-        )}
-      </div>
+      <Suspense
+        fallback={
+          <p className="text-xl text-gray-700">Loading verification...</p>
+        }
+      >
+        <VerifyEmailContent />
+      </Suspense>
     </main>
   );
 }

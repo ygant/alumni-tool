@@ -4,7 +4,6 @@ import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { fetchJson } from "@/lib/api";
 
-// 1. Extract the form and search params logic into a child component
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -98,7 +97,6 @@ function ResetPasswordForm() {
   );
 }
 
-// 2. Wrap the child component in a Suspense boundary in the main page
 export default function ResetPasswordPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
