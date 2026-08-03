@@ -122,14 +122,15 @@ router.get("/alumni/verify-email", async (req, res) => {
 });
 
 // ---------- Single profile (with degrees) ----------
-// Placed AFTER specific sub-paths like /verify-email
 router.get("/alumni/:id", async (req, res) => {
   const { id } = req.params;
   try {
     const alumniResult = await db.query(
-      `SELECT id, classification, name, email, company, job_title, job_description, research,
+      `SELECT id, classification, name, email, company, job_title, job_description,
               industry_category, work_city, work_state, work_country, linkedin_url,
-              seeking_internship, seeking_fulltime, seeking_grad_school, open_to_research, bio
+              seeking_internship, seeking_fulltime, seeking_grad_school, bio,
+              hiring_employees, reconnect_baen, capstone_client, baen_activities,
+              baen_updates, baen_fundraising, visit_department
        FROM alumni WHERE id = $1`,
       [id],
     );
@@ -501,10 +502,10 @@ router.post("/alumni/reset-password", async (req, res) => {
 router.put("/alumni/:id", async (req, res) => {
   const { id } = req.params;
   const {
+    classification,
     company,
     job_title,
     job_description,
-    research,
     industry_category,
     work_city,
     work_state,
@@ -513,8 +514,14 @@ router.put("/alumni/:id", async (req, res) => {
     seeking_internship,
     seeking_fulltime,
     seeking_grad_school,
-    open_to_research,
     bio,
+    hiring_employees,
+    reconnect_baen,
+    capstone_client,
+    baen_activities,
+    baen_updates,
+    baen_fundraising,
+    visit_department,
   } = req.body;
 
   if (industry_category && !INDUSTRY_CATEGORIES.includes(industry_category)) {
@@ -524,10 +531,10 @@ router.put("/alumni/:id", async (req, res) => {
   try {
     const result = await db.query(
       `UPDATE alumni SET
-        company = COALESCE($1, company),
-        job_title = COALESCE($2, job_title),
-        job_description = COALESCE($3, job_description),
-        research = COALESCE($4, research),
+        classification = COALESCE($1, classification),
+        company = COALESCE($2, company),
+        job_title = COALESCE($3, job_title),
+        job_description = COALESCE($4, job_description),
         industry_category = COALESCE($5, industry_category),
         work_city = COALESCE($6, work_city),
         work_state = COALESCE($7, work_state),
@@ -536,17 +543,21 @@ router.put("/alumni/:id", async (req, res) => {
         seeking_internship = COALESCE($10, seeking_internship),
         seeking_fulltime = COALESCE($11, seeking_fulltime),
         seeking_grad_school = COALESCE($12, seeking_grad_school),
-        open_to_research = COALESCE($13, open_to_research),
-        bio = COALESCE($14, bio)
-       WHERE id = $15
-       RETURNING id, classification, name, email, company, job_title, job_description, research,
-                 industry_category, work_city, work_state, work_country, linkedin_url,
-                 seeking_internship, seeking_fulltime, seeking_grad_school, open_to_research, bio`,
+        bio = COALESCE($13, bio),
+        hiring_employees = COALESCE($14, hiring_employees),
+        reconnect_baen = COALESCE($15, reconnect_baen),
+        capstone_client = COALESCE($16, capstone_client),
+        baen_activities = COALESCE($17, baen_activities),
+        baen_updates = COALESCE($18, baen_updates),
+        baen_fundraising = COALESCE($19, baen_fundraising),
+        visit_department = COALESCE($20, visit_department)
+       WHERE id = $21
+       RETURNING *`,
       [
+        classification,
         company,
         job_title,
         job_description,
-        research,
         industry_category,
         work_city,
         work_state,
@@ -555,8 +566,14 @@ router.put("/alumni/:id", async (req, res) => {
         seeking_internship,
         seeking_fulltime,
         seeking_grad_school,
-        open_to_research,
         bio,
+        hiring_employees,
+        reconnect_baen,
+        capstone_client,
+        baen_activities,
+        baen_updates,
+        baen_fundraising,
+        visit_department,
         id,
       ],
     );
@@ -646,7 +663,7 @@ router.get("/admin/alumni", async (req, res) => {
       SELECT
         a.id, a.classification, a.name, a.email, a.company, a.job_title,
         a.industry_category, a.work_city, a.work_state, a.work_country,
-        a.seeking_internship, a.seeking_fulltime, a.seeking_grad_school, a.open_to_research,
+        a.seeking_internship, a.seeking_fulltime, a.seeking_grad_school,
         COALESCE(
           STRING_AGG(d.degree_name || ' (' || d.year_conferred || ')', ', ' ORDER BY d.year_conferred),
           ''
