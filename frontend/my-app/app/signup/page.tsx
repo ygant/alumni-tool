@@ -9,12 +9,13 @@ export default function SignUp() {
   const router = useRouter();
   const [form, setForm] = useState({
     classification: "Alumni",
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
     degree_level: "Undergraduate",
-    degree_name: "",
+    degree_name: "", /* This field is dynamic but inside the profile it is a limited list of 6 degrees */
     year_conferred: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +42,8 @@ export default function SignUp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           classification: form.classification,
-          name: form.name,
+          firstName: form.firstName,
+          lastName: form.lastName,
           email: form.email,
           password: form.password,
           degree_level: form.degree_level,
@@ -101,14 +103,26 @@ export default function SignUp() {
 
           <div>
             <label className="block text-lg font-medium text-gray-800 mb-1">
-              Full Name
+              First Name
             </label>
             <input
               type="text"
               required
-              value={form.name}
-              onChange={(e) => handleChange("name", e.target.value)}
+              value={form.firstName}
+              onChange={(e) => handleChange("firstName", e.target.value)}
               className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+            />
+          </div>
+          <div>
+            <label className="block text-lg font-medium text-gray-800 mb-1">
+              Last Name
+            </label>
+            <input
+                type="text"
+                required
+                value={form.lastName}
+                onChange={(e) => handleChange("lastName", e.target.value)}
+                className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             />
           </div>
 
