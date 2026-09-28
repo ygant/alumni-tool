@@ -71,8 +71,8 @@ async function createToken(client, alumniId, type, token, expiresInMs) {
 router.get("/alumni", async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, classification, name, email, company, job_title, work_city, work_state, work_country
-       FROM alumni ORDER BY name`,
+      `SELECT id, classification, first_name AS "firstName", last_name AS "lastName", email, company, job_title, work_city, work_state, work_country
+       FROM alumni ORDER BY last_name, first_name`,
     );
     res.json(result.rows);
   } catch (err) {
@@ -126,11 +126,11 @@ router.get("/alumni/:id", async (req, res) => {
   const { id } = req.params;
   try {
     const alumniResult = await db.query(
-      `SELECT id, classification, name, email, company, job_title, job_description,
-              industry_category, work_city, work_state, work_country, linkedin_url,
+      `SELECT id, classification, first_name AS "firstName", last_name AS "lastName", email, company, job_title, job_description,
+              industry_category, work_city, work_state, work_country, work_zipcode, linkedin_url,
               seeking_internship, seeking_fulltime, seeking_grad_school, bio,
               hiring_employees, reconnect_baen, capstone_client, baen_activities,
-              baen_updates, baen_fundraising, visit_department
+              baen_updates, baen_fundraising, visit_department, last_modified
        FROM alumni WHERE id = $1`,
       [id],
     );
@@ -156,7 +156,8 @@ router.get("/alumni/:id", async (req, res) => {
 router.post("/alumni", async (req, res) => {
   const {
     classification,
-    name,
+    firstName,
+    lastName,
     email,
     password,
     degree_level,
@@ -166,7 +167,8 @@ router.post("/alumni", async (req, res) => {
 
   if (
     !classification ||
-    !name ||
+    !firstName?.trim() ||
+    !lastName?.trim() ||
     !email ||
     !password ||
     !degree_level ||
@@ -183,12 +185,14 @@ router.post("/alumni", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     const normalizedEmail = email.toLowerCase().trim();
+    const cleanFirst = firstName.trim();
+    const cleanLast = lastName.trim();
 
     const alumniResult = await client.query(
-      `INSERT INTO alumni (classification, name, email, password)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, classification, name, email`,
-      [classification, name, normalizedEmail, hashedPassword],
+      `INSERT INTO alumni (classification, first_name, last_name, email, password)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, classification, first_name AS "firstName", last_name AS "lastName", email`,
+      [classification, cleanFirst, cleanLast, normalizedEmail, hashedPassword],
     );
 
     const alumniId = alumniResult.rows[0].id;
@@ -212,7 +216,7 @@ router.post("/alumni", async (req, res) => {
 
     const verifyLink = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
     try {
-      await sendVerificationEmail(normalizedEmail, name, verifyLink);
+      await sendVerificationEmail(normalizedEmail, cleanFirst, verifyLink);
     } catch (emailErr) {
       console.error("Failed to send verification email:", emailErr);
     }
@@ -251,7 +255,7 @@ router.post("/alumni/resend-verification", async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT id, name, email, email_verified FROM alumni WHERE email = $1`,
+      `SELECT id, first_name AS "firstName", last_name AS "lastName", email, email_verified FROM alumni WHERE email = $1`,
       [email.toLowerCase().trim()],
     );
 
@@ -277,7 +281,7 @@ router.post("/alumni/resend-verification", async (req, res) => {
     }
 
     const verifyLink = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
-    await sendVerificationEmail(user.email, user.name, verifyLink);
+    await sendVerificationEmail(user.email, user.firstName, verifyLink);
 
     res.json(genericMessage);
   } catch (err) {
@@ -300,7 +304,7 @@ router.post("/alumni/login", async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT id, name, email, password, email_verified FROM alumni WHERE email = $1`,
+      `SELECT id, first_name AS "firstName", last_name AS "lastName", email, password, email_verified FROM alumni WHERE email = $1`,
       [email.toLowerCase().trim()],
     );
 
@@ -333,7 +337,7 @@ router.post("/alumni/login", async (req, res) => {
       client.release();
     }
 
-    await sendMfaCodeEmail(user.email, user.name, mfaCode);
+    await sendMfaCodeEmail(user.email, user.firstName, mfaCode);
 
     res.json({ mfaRequired: true, alumniId: user.id });
   } catch (err) {
@@ -389,7 +393,7 @@ router.post("/alumni/verify-mfa", async (req, res) => {
     ]);
 
     const userResult = await db.query(
-      `SELECT id, classification, name, email FROM alumni WHERE id = $1`,
+      `SELECT id, classification, first_name AS "firstName", last_name AS "lastName", email FROM alumni WHERE id = $1`,
       [alumniId],
     );
 
@@ -421,7 +425,7 @@ router.post("/alumni/forgot-password", async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT id, name, email FROM alumni WHERE email = $1`,
+      `SELECT id, first_name AS "firstName", last_name AS "lastName", email FROM alumni WHERE email = $1`,
       [email.toLowerCase().trim()],
     );
 
@@ -447,7 +451,7 @@ router.post("/alumni/forgot-password", async (req, res) => {
     }
 
     const resetLink = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
-    await sendPasswordResetEmail(user.email, user.name, resetLink);
+    await sendPasswordResetEmail(user.email, user.firstName, resetLink);
 
     res.json(genericMessage);
   } catch (err) {
@@ -510,6 +514,7 @@ router.put("/alumni/:id", async (req, res) => {
     work_city,
     work_state,
     work_country,
+    work_zipcode,
     linkedin_url,
     seeking_internship,
     seeking_fulltime,
@@ -539,20 +544,22 @@ router.put("/alumni/:id", async (req, res) => {
         work_city = COALESCE($6, work_city),
         work_state = COALESCE($7, work_state),
         work_country = COALESCE($8, work_country),
-        linkedin_url = COALESCE($9, linkedin_url),
-        seeking_internship = COALESCE($10, seeking_internship),
-        seeking_fulltime = COALESCE($11, seeking_fulltime),
-        seeking_grad_school = COALESCE($12, seeking_grad_school),
-        bio = COALESCE($13, bio),
-        hiring_employees = COALESCE($14, hiring_employees),
-        reconnect_baen = COALESCE($15, reconnect_baen),
-        capstone_client = COALESCE($16, capstone_client),
-        baen_activities = COALESCE($17, baen_activities),
-        baen_updates = COALESCE($18, baen_updates),
-        baen_fundraising = COALESCE($19, baen_fundraising),
-        visit_department = COALESCE($20, visit_department)
-       WHERE id = $21
-       RETURNING *`,
+        work_zipcode = COALESCE($9, work_zipcode),
+        linkedin_url = COALESCE($10, linkedin_url),
+        seeking_internship = COALESCE($11, seeking_internship),
+        seeking_fulltime = COALESCE($12, seeking_fulltime),
+        seeking_grad_school = COALESCE($13, seeking_grad_school),
+        bio = COALESCE($14, bio),
+        hiring_employees = COALESCE($15, hiring_employees),
+        reconnect_baen = COALESCE($16, reconnect_baen),
+        capstone_client = COALESCE($17, capstone_client),
+        baen_activities = COALESCE($18, baen_activities),
+        baen_updates = COALESCE($19, baen_updates),
+        baen_fundraising = COALESCE($20, baen_fundraising),
+        visit_department = COALESCE($21, visit_department),
+        last_modified = NOW()
+       WHERE id = $22
+       RETURNING id, last_modified`,
       [
         classification,
         company,
@@ -562,6 +569,7 @@ router.put("/alumni/:id", async (req, res) => {
         work_city,
         work_state,
         work_country,
+        work_zipcode,
         linkedin_url,
         seeking_internship,
         seeking_fulltime,
@@ -607,6 +615,7 @@ router.post("/alumni/:id/degrees", async (req, res) => {
        RETURNING id, degree_level, degree_name, year_conferred`,
       [id, degree_level, degree_name, year_conferred],
     );
+    await db.query(`UPDATE alumni SET last_modified = NOW() WHERE id = $1`, [id]);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("Add degree error:", err);
@@ -624,6 +633,7 @@ router.delete("/alumni/:id/degrees/:degreeId", async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Degree not found." });
     }
+    await db.query(`UPDATE alumni SET last_modified = NOW() WHERE id = $1`, [id]);
     res.json({ success: true });
   } catch (err) {
     console.error("Delete degree error:", err);
@@ -661,7 +671,7 @@ router.get("/admin/alumni", async (req, res) => {
     const result = await db.query(
       `
       SELECT
-        a.id, a.classification, a.name, a.email, a.company, a.job_title,
+        a.id, a.classification, a.first_name AS "firstName", a.last_name AS "lastName", a.email, a.company, a.job_title,
         a.industry_category, a.work_city, a.work_state, a.work_country,
         a.seeking_internship, a.seeking_fulltime, a.seeking_grad_school,
         COALESCE(
@@ -672,7 +682,7 @@ router.get("/admin/alumni", async (req, res) => {
       LEFT JOIN alumni_degrees d ON d.alumni_id = a.id
       WHERE LOWER(a.email) != ALL($1::text[])
       GROUP BY a.id
-      ORDER BY a.name
+      ORDER BY a.last_name, a.first_name
       `,
       [ADMIN_EMAILS],
     );

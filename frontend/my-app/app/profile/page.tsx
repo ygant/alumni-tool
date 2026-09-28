@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api";
 import { Country, State, City } from "country-state-city";
 
+/* Look to expand Industry List, There also exists a column for work_state and I've added one for work_zipcode */
+
 const INDUSTRY_CATEGORIES = [
   "Agriculture",
   "Environmental Engineering",
@@ -22,6 +24,7 @@ const INDUSTRY_CATEGORIES = [
   "Other",
 ];
 
+/* Look to expand this list or maybe consider broader lists */
 const TAMU_BAEN_DEGREES = [
   "Biological and Agricultural Engineering (B.S.)",
   "Biological and Agricultural Engineering (M.S.)",
@@ -30,6 +33,8 @@ const TAMU_BAEN_DEGREES = [
   "Agricultural Systems Management (B.S.)",
   "Agricultural Systems Management (M.S.)",
 ];
+
+/* Consider Degree Programs Instead and then Other */
 
 const countries = [...Country.getAllCountries()].sort((a, b) => {
   if (a.isoCode === "US") return -1;
@@ -49,15 +54,17 @@ interface Degree {
 interface Profile {
   id: number;
   classification: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   company: string | null;
   job_title: string | null;
   job_description: string | null;
   industry_category: string | null;
-  work_city: string | null;
+  work_city: string | null; /* Currently work_city is showing counties... */
   work_state: string | null;
   work_country: string | null;
+  work_zipcode: string | null;
   linkedin_url: string | null;
   seeking_internship: boolean;
   seeking_fulltime: boolean;
@@ -99,6 +106,7 @@ export default function ProfilePage() {
     work_city: "",
     work_state: "",
     work_country: "",
+    work_zipcode: "",
     linkedin_url: "",
     seeking_internship: false,
     seeking_fulltime: false,
@@ -149,6 +157,7 @@ export default function ProfilePage() {
           work_city: blankIfNull(data.work_city),
           work_state: blankIfNull(data.work_state),
           work_country: blankIfNull(data.work_country),
+          work_zipcode: blankIfNull(data.work_zipcode),
           linkedin_url: blankIfNull(data.linkedin_url),
           seeking_internship: !!data.seeking_internship,
           seeking_fulltime: !!data.seeking_fulltime,
@@ -170,7 +179,7 @@ export default function ProfilePage() {
             (s) => s.name === data.work_state,
           );
           if (selectedState) {
-            setCities(City.getCitiesOfState("US", selectedState.isoCode));
+            setCities(City.getCitiesOfState("US", selectedState.isoCode).filter((c) => !/ (County|Parish|Borough|Census Area)$/.test(c.name))); /* This is necessary because otherwise getCitiesOfState returns counties and cities*/
           }
         }
       } catch (err) {
@@ -499,7 +508,7 @@ export default function ProfilePage() {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
               <label className="block text-lg font-medium text-gray-800 mb-1">
                 Work Country
@@ -512,6 +521,7 @@ export default function ProfilePage() {
                   if (country !== "United States") {
                     handleChange("work_state", "");
                     setCities([]);
+                    handleChange("work_zipcode", '');
                   }
                 }}
                 className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
@@ -536,6 +546,7 @@ export default function ProfilePage() {
                       const state = e.target.value;
                       handleChange("work_state", state);
                       handleChange("work_city", "");
+                      handleChange("work_zipcode", "");
                       const selectedState = usStates.find(
                         (s) => s.name === state,
                       );
@@ -557,13 +568,14 @@ export default function ProfilePage() {
                     ))}
                   </select>
                 </div>
+
               )}
             </div>
             <div>
               <label className="block text-lg font-medium text-gray-800 mb-1">
                 Work City
               </label>
-              {form.work_country === "United States" ? (
+              {form.work_country === "United States"? (
                 <select
                   value={form.work_city}
                   onChange={(e) => handleChange("work_city", e.target.value)}
@@ -587,7 +599,22 @@ export default function ProfilePage() {
                 />
               )}
             </div>
-          </div>
+            {form.work_country === "United States" && (
+              <div>
+                <label className="block text-lg font-medium text-gray-800 mb-1">
+                  Zip Code
+                </label>
+                <input
+                  type="text"
+                  value={form.work_zipcode}
+                  onChange={(e) => handleChange("work_zipcode", e.target.value)}
+                  maxLength={10}
+                  className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+                  placeholder="e.g. 77843"
+                />
+              </div>
+            )}
+            </div>
 
           <button
             onClick={(e) => handleSave(e, "Employment")}

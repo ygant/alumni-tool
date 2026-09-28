@@ -7,7 +7,8 @@ import { fetchJson } from "@/lib/api";
 interface AdminAlumnus {
   id: number;
   classification: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   company: string | null;
   job_title: string | null;
@@ -25,7 +26,8 @@ interface AdminAlumnus {
 type SortKey = keyof AdminAlumnus;
 
 const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: "name", label: "Name" },
+  { key: "lastName", label: "Last Name" },
+  { key: "firstName", label: "First Name" },
   { key: "classification", label: "Classification" },
   { key: "email", label: "Email" },
   { key: "degrees", label: "Degrees" },
@@ -42,7 +44,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortKey, setSortKey] = useState<SortKey>("lastName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
@@ -167,7 +169,10 @@ export default function AdminPage() {
                 className="border-b border-gray-200 hover:bg-gray-50"
               >
                 <td className="px-4 py-3 text-base text-gray-800">
-                  {row.name}
+                  {row.lastName}
+                </td>
+                <td className="px-4 py-3 text-base text-gray-800">
+                  {row.firstName}
                 </td>
                 <td className="px-4 py-3 text-base text-gray-800">
                   {row.classification}

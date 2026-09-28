@@ -55,7 +55,8 @@ export default function Login() {
     try {
       const user = await fetchJson<{
         id: number;
-        name: string;
+        firstName: string;
+        lastName: string;
         isAdmin: boolean;
       }>("/api/alumni/verify-mfa", {
         method: "POST",
@@ -64,7 +65,7 @@ export default function Login() {
       });
 
       localStorage.setItem("alumniId", String(user.id));
-      localStorage.setItem("alumniName", user.name);
+      localStorage.setItem("alumniName", `${user.firstName} ${user.lastName}`);
       localStorage.setItem("isAdmin", String(user.isAdmin));
 
       router.push(user.isAdmin ? "/admin" : "/profile");
