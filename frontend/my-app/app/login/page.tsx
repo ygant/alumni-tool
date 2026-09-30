@@ -16,7 +16,24 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [needsVerification, setNeedsVerification] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [resendMessage, setResendMessage] = useState<string | null>(null);
+  // "idle" -> "sending" -> "sent" (stays sent so the email is only ever resent once)
+  const [resendStatus, setResendStatus] = useState<
+    "idle" | "sending" | "sent" | "error"
+  >("idle");
+  const [resendError, setResendError] = useState<string | null>(null);
+
+  // Save the logged-in user and go to their page (used with or without MFA)
+  const completeLogin = (user: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    isAdmin: boolean;
+  }) => {
+    localStorage.setItem("alumniId", String(user.id));
+    localStorage.setItem("alumniName", `${user.firstName} ${user.lastName}`);
+    localStorage.setItem("isAdmin", String(user.isAdmin));
+    router.push(user.isAdmin ? "/admin" : "/profile");
+  };
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,15 +42,31 @@ export default function Login() {
     setSubmitting(true);
 
     try {
-      const data = await fetchJson<{ mfaRequired: boolean; alumniId: number }>(
-        "/api/alumni/login",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        },
-      );
-      setAlumniId(data.alumniId);
+      const data = await fetchJson<{
+        mfaRequired: boolean;
+        alumniId?: number;
+        id?: number;
+        firstName?: string;
+        lastName?: string;
+        isAdmin?: boolean;
+      }>("/api/alumni/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      // MFA is turned off on the server: skip the code screen
+      if (!data.mfaRequired) {
+        completeLogin({
+          id: data.id!,
+          firstName: data.firstName ?? "",
+          lastName: data.lastName ?? "",
+          isAdmin: Boolean(data.isAdmin),
+        });
+        return;
+      }
+
+      setAlumniId(data.alumniId ?? null);
       setStep("mfa");
     } catch (err) {
       const message =
@@ -64,11 +97,7 @@ export default function Login() {
         body: JSON.stringify({ alumniId, code }),
       });
 
-      localStorage.setItem("alumniId", String(user.id));
-      localStorage.setItem("alumniName", `${user.firstName} ${user.lastName}`);
-      localStorage.setItem("isAdmin", String(user.isAdmin));
-
-      router.push(user.isAdmin ? "/admin" : "/profile");
+      completeLogin(user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -77,19 +106,22 @@ export default function Login() {
   };
 
   const handleResend = async () => {
-    setResendMessage(null);
+    // Only allow one resend: ignore clicks while sending or after it succeeded
+    if (resendStatus === "sending" || resendStatus === "sent") return;
+
+    setResendStatus("sending");
+    setResendError(null);
     try {
-      const data = await fetchJson<{ message: string }>(
-        "/api/alumni/resend-verification",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        },
-      );
-      setResendMessage(data.message);
+      await fetchJson<{ message: string }>("/api/alumni/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setResendStatus("sent");
     } catch (err) {
-      setResendMessage(
+      // A failed request didn't send anything, so let them try again
+      setResendStatus("error");
+      setResendError(
         err instanceof Error ? err.message : "Something went wrong.",
       );
     }
@@ -193,15 +225,37 @@ export default function Login() {
 
           {needsVerification && (
             <div>
-              <button
-                type="button"
-                onClick={handleResend}
-                className="text-lg text-blue-700 underline font-medium"
-              >
-                Resend Verification Email
-              </button>
-              {resendMessage && (
-                <p className="text-gray-700 mt-2">{resendMessage}</p>
+              {resendStatus === "sent" ? (
+                <div
+                  role="status"
+                  className="rounded-md border-2 border-green-600 bg-green-50 p-4"
+                >
+                  <p className="text-lg font-semibold text-green-800">
+                    ✓ Verification email sent
+                  </p>
+                  <p className="text-base text-green-900 mt-1">
+                    We sent a new link to <strong>{email}</strong>. Check your
+                    inbox and spam folder. The link expires in 24 hours.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resendStatus === "sending"}
+                    className="text-lg text-blue-700 underline font-medium disabled:opacity-60 disabled:no-underline"
+                  >
+                    {resendStatus === "sending"
+                      ? "Sending..."
+                      : "Resend Verification Email"}
+                  </button>
+                  {resendStatus === "error" && resendError && (
+                    <p className="text-red-600 mt-2">
+                      {resendError} Please try again.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}
