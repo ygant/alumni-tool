@@ -3,36 +3,58 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api";
+import { TAMU_DEGREES, DEGREE_TYPES } from "@/lib/degrees";
 import { Country, State, City } from "country-state-city";
 
 /* Look to expand Industry List, There also exists a column for work_state and I've added one for work_zipcode */
 
 const INDUSTRY_CATEGORIES = [
-  "Agriculture",
-  "Environmental Engineering",
-  "Water Resources",
-  "Biological/Biotechnology",
-  "Food & Beverage",
-  "Energy & Utilities",
-  "Engineering & Consulting",
-  "Construction & Infrastructure",
-  "Technology & Data Analytics",
-  "Government & Public Service",
-  "Research & Education",
-  "Manufacturing & Operations",
-  "Business & Management",
-  "Other",
+  "Power Machinery",
+  "Instrumentation and Controls",
+  "Air Quality",
+  "Bioenergy",
+  "Food Engineering",
+  "Water Availability and Quality",
+  "Water Conservation",
+  "Wastewater",
+  "Structures",
+  "Data Analytics",
+  "GIS",
+  "Management",
+  "Engineering Technician",
+  "Sales",
+  "Technical Sales",
+  "Irrigation Systems Manager",
+  "Production Supervisor",
+  "Logistics",
+  "Project Administrator",
+  "Surveying",
+  "Staff Consultant",
+  "Technical Support Specialist",
+  "Military",
+  "Teacher",
+  "Educator",
+  "Safety Training",
+  "Safety Manager",
+  "Safety",
+  "Government",
+  "Farm Manager",
+  "Ranch Manager",
+  "Rain Water Harvesting",
+  "Construction",
+  "Consulting",
+  "Installer",
+  "Electrician",
+  "Energy Management",
+  "Resource Management",
+  "Land Development",
+  "Permitting",
+  "Environmental Consulting",
+  "Energy",
+  "Farmer/Rancher",
+  "Entrepreneur",
 ];
 
-/* Look to expand this list or maybe consider broader lists */
-const TAMU_BAEN_DEGREES = [
-  "Biological and Agricultural Engineering (B.S.)",
-  "Biological and Agricultural Engineering (M.S.)",
-  "Biological and Agricultural Engineering (M.Eng.)",
-  "Biological and Agricultural Engineering (Ph.D.)",
-  "Agricultural Systems Management (B.S.)",
-  "Agricultural Systems Management (M.S.)",
-];
 
 /* Consider Degree Programs Instead and then Other */
 
@@ -128,6 +150,7 @@ export default function ProfilePage() {
     year_conferred: "",
   });
   const [addingDegree, setAddingDegree] = useState(false);
+  const [otherDegree, setOtherDegree] = useState({ name: "", type: "B.S." });
 
   // ---- Load profile on mount ----
   useEffect(() => {
@@ -234,6 +257,16 @@ export default function ProfilePage() {
       return;
     }
 
+    const isOther = newDegree.degree_name === "Other";
+    if (isOther && !otherDegree.name.trim()) {
+      setError("Please type the name of your degree.");
+      return;
+    }
+    // "Other" is saved as e.g. "Soil Science (M.S.)", matching the list's format
+    const degreeName = isOther
+      ? `${otherDegree.name.trim()} (${otherDegree.type})`
+      : newDegree.degree_name;
+
     setAddingDegree(true);
     setError(null);
 
@@ -243,7 +276,7 @@ export default function ProfilePage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newDegree),
+          body: JSON.stringify({ ...newDegree, degree_name: degreeName }),
         },
       );
       setDegrees((prev) => [...prev, created]);
@@ -252,6 +285,7 @@ export default function ProfilePage() {
         degree_name: "",
         year_conferred: "",
       });
+      setOtherDegree({ name: "", type: "B.S." });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add degree.");
     } finally {
@@ -395,7 +429,7 @@ export default function ProfilePage() {
           </div>
           <div>
             <label className="block text-lg font-medium text-gray-800 mb-1">
-              Degree / Major (Texas A&M BAEN)
+              Degree / Major (Texas A&M)
             </label>
             <select
               value={newDegree.degree_name}
@@ -408,13 +442,50 @@ export default function ProfilePage() {
               className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             >
               <option value="">-- Select Texas A&M Degree Program --</option>
-              {TAMU_BAEN_DEGREES.map((deg) => (
+              {TAMU_DEGREES.map((deg) => (
                 <option key={deg} value={deg}>
                   {deg}
                 </option>
               ))}
             </select>
           </div>
+          {newDegree.degree_name === "Other" && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-lg font-medium text-gray-800 mb-1">
+                  Degree Name
+                </label>
+                <input
+                  type="text"
+                  value={otherDegree.name}
+                  onChange={(e) =>
+                    setOtherDegree((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  maxLength={100}
+                  className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+                  placeholder="e.g. Agricultural Engineering"
+                />
+              </div>
+              <div>
+                <label className="block text-lg font-medium text-gray-800 mb-1">
+                  Degree Type
+                </label>
+                <select
+                  value={otherDegree.type}
+                  onChange={(e) =>
+                    setOtherDegree((prev) => ({ ...prev, type: e.target.value }))
+                  }
+                  className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
+                >
+                  {DEGREE_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-lg font-medium text-gray-800 mb-1">
               Year Conferred
@@ -552,7 +623,9 @@ export default function ProfilePage() {
                       );
                       if (selectedState) {
                         setCities(
-                          City.getCitiesOfState("US", selectedState.isoCode),
+                          City.getCitiesOfState("US", selectedState.isoCode).filter(
+                            (c) => !/ (County|Parish|Borough|Census Area)$/.test(c.name),
+                          ),
                         );
                       } else {
                         setCities([]);

@@ -13,26 +13,64 @@ const SALT_ROUNDS = 12;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
 const INDUSTRY_CATEGORIES = [
-  "Agriculture",
-  "Environmental Engineering",
-  "Water Resources",
-  "Biological/Biotechnology",
-  "Food & Beverage",
-  "Energy & Utilities",
-  "Engineering & Consulting",
-  "Construction & Infrastructure",
-  "Technology & Data Analytics",
-  "Government & Public Service",
-  "Research & Education",
-  "Manufacturing & Operations",
-  "Business & Management",
-  "Other",
+  "Power Machinery",
+  "Instrumentation and Controls",
+  "Air Quality",
+  "Bioenergy",
+  "Food Engineering",
+  "Water Availability and Quality",
+  "Water Conservation",
+  "Wastewater",
+  "Structures",
+  "Data Analytics",
+  "GIS",
+  "Management",
+  "Engineering Technician",
+  "Sales",
+  "Technical Sales",
+  "Irrigation Systems Manager",
+  "Production Supervisor",
+  "Logistics",
+  "Project Administrator",
+  "Surveying",
+  "Staff Consultant",
+  "Technical Support Specialist",
+  "Military",
+  "Teacher",
+  "Educator",
+  "Safety Training",
+  "Safety Manager",
+  "Safety",
+  "Government",
+  "Farm Manager",
+  "Ranch Manager",
+  "Rain Water Harvesting",
+  "Construction",
+  "Consulting",
+  "Installer",
+  "Electrician",
+  "Energy Management",
+  "Resource Management",
+  "Land Development",
+  "Permitting",
+  "Environmental Consulting",
+  "Energy",
+  "Farmer/Rancher",
+  "Entrepreneur",
 ];
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
+
+// MFA can be turned off for local testing by putting MFA_ENABLED=false in .env.
+// If the setting is missing or anything other than "false", MFA stays ON.
+const MFA_ENABLED =
+  (process.env.MFA_ENABLED || "true").trim().toLowerCase() !== "false";
+if (!MFA_ENABLED) {
+  console.warn("WARNING: MFA is DISABLED (MFA_ENABLED=false). Do not use in production.");
+}
 
 async function isAdminRequester(requesterId) {
   if (!requesterId) return false;
@@ -324,6 +362,19 @@ router.post("/alumni/login", async (req, res) => {
         error:
           "Please verify your email before logging in. Check your inbox for the verification link.",
         needsVerification: true,
+      });
+    }
+
+    // MFA turned off: log in straight away with the same info /verify-mfa returns
+    if (!MFA_ENABLED) {
+      const isAdmin = ADMIN_EMAILS.includes(user.email.toLowerCase());
+      return res.json({
+        mfaRequired: false,
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        isAdmin,
       });
     }
 
