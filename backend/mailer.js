@@ -3,14 +3,33 @@ const { EmailClient } = require("@azure/communication-email");
 const client = new EmailClient(process.env.ACS_CONNECTION_STRING);
 const FROM_ADDRESS = process.env.EMAIL_FROM;
 
-async function sendEmail(to, subject, html) {
-  const poller = await client.beginSend({
-    senderAddress: FROM_ADDRESS,
-    content: { subject, html },
-    recipients: { to: [{ address: to }] },
-  });
+// Azure Communication Services returns HTTP 429 when our sending quota is used up.
+function isEmailRateLimitError(err) {
+  if (!err) return false;
+  if (err.rateLimited) return true;
+  if (err.statusCode === 429 || err.status === 429) return true;
+  if (err.code === "TooManyRequests") return true;
+  return /\b429\b|too many requests|throttl|quota/i.test(err.message || "");
+}
 
-  const result = await poller.pollUntilDone();
+async function sendEmail(to, subject, html) {
+  let result;
+  try {
+    const poller = await client.beginSend({
+      senderAddress: FROM_ADDRESS,
+      content: { subject, html },
+      recipients: { to: [{ address: to }] },
+    });
+    result = await poller.pollUntilDone();
+  } catch (err) {
+    if (isEmailRateLimitError(err)) {
+      const limited = new Error("Email sending is rate limited (429).");
+      limited.rateLimited = true;
+      limited.cause = err;
+      throw limited;
+    }
+    throw err;
+  }
 
   if (result.status !== "Succeeded") {
     throw new Error(`Email failed to send: ${result.status}`);
@@ -59,6 +78,7 @@ async function sendMfaCodeEmail(to, name, code) {
 }
 
 module.exports = {
+  isEmailRateLimitError,
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendMfaCodeEmail,
