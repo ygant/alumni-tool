@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { fetchJson } from "@/lib/api";
+import { fetchJson, isRateLimited } from "@/lib/api";
+
+// Remembered across refreshes so the notice stays up for the full hour
+const RATE_LIMIT_KEY = "signInLimitedUntil";
+const DEFAULT_LIMIT_SECONDS = 60 * 60;
 
 export default function Login() {
   const router = useRouter();
@@ -21,6 +25,51 @@ export default function Login() {
     "idle" | "sending" | "sent" | "error"
   >("idle");
   const [resendError, setResendError] = useState<string | null>(null);
+
+  // Set when the server answers 429 (email quota reached): timestamp in ms
+  const [limitedUntil, setLimitedUntil] = useState<number | null>(null);
+  const isLimited = limitedUntil !== null && Date.now() < limitedUntil;
+
+  // Restore an active limit after a refresh, and clear it once the hour is up
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(RATE_LIMIT_KEY));
+      if (saved && saved > Date.now()) setLimitedUntil(saved);
+      else localStorage.removeItem(RATE_LIMIT_KEY);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!limitedUntil) return;
+    const ms = limitedUntil - Date.now();
+    const timer = setTimeout(() => {
+      setLimitedUntil(null);
+      try {
+        localStorage.removeItem(RATE_LIMIT_KEY);
+      } catch {}
+    }, Math.max(ms, 0));
+    return () => clearTimeout(timer);
+  }, [limitedUntil]);
+
+  const startRateLimit = (retryAfterSeconds?: unknown) => {
+    const seconds =
+      typeof retryAfterSeconds === "number" && retryAfterSeconds > 0
+        ? retryAfterSeconds
+        : DEFAULT_LIMIT_SECONDS;
+    const until = Date.now() + seconds * 1000;
+    setLimitedUntil(until);
+    setError(null);
+    try {
+      localStorage.setItem(RATE_LIMIT_KEY, String(until));
+    } catch {}
+  };
+
+  const limitedUntilText = limitedUntil
+    ? new Date(limitedUntil).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "";
 
   // Save the logged-in user and go to their page (used with or without MFA)
   const completeLogin = (user: {
@@ -69,6 +118,10 @@ export default function Login() {
       setAlumniId(data.alumniId ?? null);
       setStep("mfa");
     } catch (err) {
+      if (isRateLimited(err)) {
+        startRateLimit(err.body?.retryAfterSeconds);
+        return;
+      }
       const message =
         err instanceof Error ? err.message : "Something went wrong.";
       setError(message);
@@ -119,10 +172,20 @@ export default function Login() {
       });
       setResendStatus("sent");
     } catch (err) {
+      // Email quota reached: explain it here at the resend button only.
+      // The "sign-ins are limited" notice is reserved for the login request,
+      // which can only hit the limit when MFA is on (it emails a code).
+      if (isRateLimited(err)) {
+        setResendStatus("error");
+        setResendError(
+          "We couldn't send the email right now because emails are temporarily limited. Please try again in an hour.",
+        );
+        return;
+      }
       // A failed request didn't send anything, so let them try again
       setResendStatus("error");
       setResendError(
-        err instanceof Error ? err.message : "Something went wrong.",
+        `${err instanceof Error ? err.message : "Something went wrong."} Please try again.`,
       );
     }
   };
@@ -221,6 +284,21 @@ export default function Login() {
             />
           </div>
 
+          {isLimited && (
+            <div
+              role="alert"
+              className="rounded-md border-2 border-amber-500 bg-amber-50 p-4"
+            >
+              <p className="text-lg font-semibold text-amber-900">
+                Sign-ins are temporarily limited
+              </p>
+              <p className="text-base text-amber-900 mt-1">
+                For security reasons, sign-ins have been limited. Please try
+                again in an hour (after {limitedUntilText}).
+              </p>
+            </div>
+          )}
+
           {error && <p className="text-red-600 text-lg font-medium">{error}</p>}
 
           {needsVerification && (
@@ -252,7 +330,7 @@ export default function Login() {
                   </button>
                   {resendStatus === "error" && resendError && (
                     <p className="text-red-600 mt-2">
-                      {resendError} Please try again.
+                      {resendError}
                     </p>
                   )}
                 </>
@@ -262,7 +340,7 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || isLimited}
             className="w-full text-xl font-semibold bg-blue-700 text-white rounded-md py-3 hover:bg-blue-800 disabled:opacity-60"
           >
             {submitting ? "Checking..." : "Continue"}

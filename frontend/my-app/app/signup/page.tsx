@@ -24,6 +24,8 @@ export default function SignUp() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [signupComplete, setSignupComplete] = useState(false);
+  // True when the account was created but Azure's email limit blocked the verification email
+  const [emailLimited, setEmailLimited] = useState(false);
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -50,7 +52,7 @@ export default function SignUp() {
 
     setSubmitting(true);
     try {
-      await fetchJson("/api/alumni", {
+      const result = await fetchJson<{ emailRateLimited?: boolean }>("/api/alumni", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -64,6 +66,7 @@ export default function SignUp() {
           year_conferred: form.year_conferred,
         }),
       });
+      setEmailLimited(Boolean(result.emailRateLimited));
       setSignupComplete(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -71,6 +74,39 @@ export default function SignUp() {
       setSubmitting(false);
     }
   };
+
+  if (signupComplete && emailLimited) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+        <div className="w-full max-w-md text-center">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Account Created
+          </h1>
+          <div
+            role="alert"
+            className="rounded-md border-2 border-amber-500 bg-amber-50 p-4 text-left"
+          >
+            <p className="text-lg font-semibold text-amber-900">
+              We couldn&apos;t send your verification email yet
+            </p>
+            <p className="text-base text-amber-900 mt-1">
+              For security reasons, emails have been temporarily limited. Your
+              account for <strong>{form.email}</strong> was saved, so you
+              don&apos;t need to sign up again.
+            </p>
+            <p className="text-base text-amber-900 mt-2">
+              Please come back in an hour, go to{" "}
+              <a href="/login" className="underline font-medium">
+                Log In
+              </a>
+              , enter your email and password, and click{" "}
+              <strong>Resend Verification Email</strong>.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (signupComplete) {
     return (

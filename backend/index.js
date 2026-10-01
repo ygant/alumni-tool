@@ -7,6 +7,7 @@ var {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendMfaCodeEmail,
+  isEmailRateLimitError,
 } = require("./mailer");
 
 const SALT_ROUNDS = 12;
@@ -66,6 +67,18 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
 
 // MFA can be turned off for local testing by putting MFA_ENABLED=false in .env.
 // If the setting is missing or anything other than "false", MFA stays ON.
+// Sent when Azure email hits its quota (HTTP 429). The frontend looks for
+// rateLimited: true to show a "try again in an hour" notice.
+const RETRY_AFTER_SECONDS = 60 * 60;
+function sendRateLimited(res, error) {
+  res.set("Retry-After", String(RETRY_AFTER_SECONDS));
+  return res.status(429).json({
+    error,
+    rateLimited: true,
+    retryAfterSeconds: RETRY_AFTER_SECONDS,
+  });
+}
+
 const MFA_ENABLED =
   (process.env.MFA_ENABLED || "true").trim().toLowerCase() !== "false";
 if (!MFA_ENABLED) {
@@ -253,15 +266,26 @@ router.post("/alumni", async (req, res) => {
     await client.query("COMMIT");
 
     const verifyLink = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
+    // The account is already saved, so an email failure doesn't undo signup.
+    // We just tell the frontend so it can warn the user.
+    let emailRateLimited = false;
     try {
       await sendVerificationEmail(normalizedEmail, cleanFirst, verifyLink);
     } catch (emailErr) {
-      console.error("Failed to send verification email:", emailErr);
+      if (isEmailRateLimitError(emailErr)) {
+        emailRateLimited = true;
+        console.warn("Signup verification email not sent: email sending is rate limited (429).");
+      } else {
+        console.error("Failed to send verification email:", emailErr);
+      }
     }
 
     res.status(201).json({
       ...alumniResult.rows[0],
-      message: "Please check your email to verify your account.",
+      emailRateLimited,
+      message: emailRateLimited
+        ? "Your account was created, but we couldn't send the verification email right now."
+        : "Please check your email to verify your account.",
     });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -323,6 +347,13 @@ router.post("/alumni/resend-verification", async (req, res) => {
 
     res.json(genericMessage);
   } catch (err) {
+    if (isEmailRateLimitError(err)) {
+      console.warn("Resend verification blocked: email sending is rate limited (429).");
+      return sendRateLimited(
+        res,
+        "Emails have been temporarily limited for security reasons. Please try again in an hour.",
+      );
+    }
     console.error("Resend verification error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
@@ -392,6 +423,13 @@ router.post("/alumni/login", async (req, res) => {
 
     res.json({ mfaRequired: true, alumniId: user.id });
   } catch (err) {
+    if (isEmailRateLimitError(err)) {
+      console.warn("Login blocked: email sending is rate limited (429).");
+      return sendRateLimited(
+        res,
+        "Sign-ins have been temporarily limited for security reasons. Please try again in an hour.",
+      );
+    }
     console.error("Login error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
@@ -506,6 +544,13 @@ router.post("/alumni/forgot-password", async (req, res) => {
 
     res.json(genericMessage);
   } catch (err) {
+    if (isEmailRateLimitError(err)) {
+      console.warn("Password reset blocked: email sending is rate limited (429).");
+      return sendRateLimited(
+        res,
+        "Password resets have been temporarily limited for security reasons. Please try again in an hour.",
+      );
+    }
     console.error("Forgot password error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
