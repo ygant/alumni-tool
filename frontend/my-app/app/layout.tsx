@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Alumni Center",
+  title: "BAEN Community",
   description: "Profile creator for BAEN alumni and students",
 };
 
