@@ -262,6 +262,9 @@ export default function Login() {
             <label className="block text-lg font-medium text-gray-800 mb-1">
               Email Address
             </label>
+            <p className="text-sm text-gray-600 mb-1">
+              Your main email or the backup email on your profile
+            </p>
             <input
               type="email"
               required
