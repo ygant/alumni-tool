@@ -181,7 +181,7 @@ router.get("/alumni/:id", async (req, res) => {
               industry_category, work_city, work_state, work_country, work_zipcode, linkedin_url,
               seeking_internship, seeking_fulltime, seeking_grad_school, bio,
               hiring_employees, reconnect_baen, capstone_client, baen_activities,
-              baen_updates, baen_fundraising, visit_department, last_modified
+              baen_updates, baen_fundraising, visit_department, last_modified, backup_email
        FROM alumni WHERE id = $1`,
       [id],
     );
@@ -211,20 +211,15 @@ router.post("/alumni", async (req, res) => {
     lastName,
     email,
     password,
-    degree_level,
-    degree_name,
-    year_conferred,
   } = req.body;
 
+  // Degrees are no longer collected at signup; people add them on their profile page.
   if (
     !classification ||
     !firstName?.trim() ||
     !lastName?.trim() ||
     !email ||
-    !password ||
-    !degree_level ||
-    !degree_name ||
-    !year_conferred
+    !password
   ) {
     return res.status(400).json({ error: "Please fill out every field." });
   }
@@ -239,6 +234,18 @@ router.post("/alumni", async (req, res) => {
     const cleanFirst = firstName.trim();
     const cleanLast = lastName.trim();
 
+    // An email can belong to only one account, as either a main or backup email
+    const backupTaken = await client.query(
+      `SELECT 1 FROM alumni WHERE backup_email = $1 LIMIT 1`,
+      [normalizedEmail],
+    );
+    if (backupTaken.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return res
+        .status(409)
+        .json({ error: "An account with that email already exists." });
+    }
+
     const alumniResult = await client.query(
       `INSERT INTO alumni (classification, first_name, last_name, email, password)
        VALUES ($1, $2, $3, $4, $5)
@@ -247,12 +254,6 @@ router.post("/alumni", async (req, res) => {
     );
 
     const alumniId = alumniResult.rows[0].id;
-
-    await client.query(
-      `INSERT INTO alumni_degrees (alumni_id, degree_level, degree_name, year_conferred)
-       VALUES ($1, $2, $3, $4)`,
-      [alumniId, degree_level, degree_name, year_conferred],
-    );
 
     const verifyToken = generateUrlToken();
     await createToken(
@@ -317,7 +318,9 @@ router.post("/alumni/resend-verification", async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT id, first_name AS "firstName", last_name AS "lastName", email, email_verified FROM alumni WHERE email = $1`,
+      `SELECT id, first_name AS "firstName", last_name AS "lastName", email, email_verified FROM alumni
+       WHERE email = $1 OR backup_email = $1
+       ORDER BY (email = $1) DESC LIMIT 1`,
       [email.toLowerCase().trim()],
     );
 
@@ -373,7 +376,9 @@ router.post("/alumni/login", async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT id, first_name AS "firstName", last_name AS "lastName", email, password, email_verified FROM alumni WHERE email = $1`,
+      `SELECT id, first_name AS "firstName", last_name AS "lastName", email, password, email_verified FROM alumni
+       WHERE email = $1 OR backup_email = $1
+       ORDER BY (email = $1) DESC LIMIT 1`,
       [email.toLowerCase().trim()],
     );
 
@@ -514,7 +519,9 @@ router.post("/alumni/forgot-password", async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT id, first_name AS "firstName", last_name AS "lastName", email FROM alumni WHERE email = $1`,
+      `SELECT id, first_name AS "firstName", last_name AS "lastName", email FROM alumni
+       WHERE email = $1 OR backup_email = $1
+       ORDER BY (email = $1) DESC LIMIT 1`,
       [email.toLowerCase().trim()],
     );
 
@@ -594,6 +601,70 @@ router.post("/alumni/reset-password", async (req, res) => {
     });
   } catch (err) {
     console.error("Reset password error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ---------- Backup email (can also be used to log in) ----------
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+router.put("/alumni/:id/backup-email", async (req, res) => {
+  const { id } = req.params;
+  const backupEmail =
+    typeof req.body.backup_email === "string"
+      ? req.body.backup_email.trim().toLowerCase()
+      : "";
+
+  try {
+    // Empty value removes the backup email
+    if (!backupEmail) {
+      await db.query(
+        `UPDATE alumni SET backup_email = NULL, last_modified = NOW() WHERE id = $1`,
+        [id],
+      );
+      return res.json({ backup_email: null });
+    }
+
+    if (!EMAIL_PATTERN.test(backupEmail)) {
+      return res.status(400).json({ error: "Please enter a valid email address." });
+    }
+
+    const own = await db.query(`SELECT email FROM alumni WHERE id = $1`, [id]);
+    if (own.rows.length === 0) {
+      return res.status(404).json({ error: "Profile not found." });
+    }
+    if (own.rows[0].email.toLowerCase() === backupEmail) {
+      return res.status(400).json({
+        error: "Your backup email must be different from your main email.",
+      });
+    }
+
+    // Each email can only log in to one account
+    const taken = await db.query(
+      `SELECT 1 FROM alumni
+       WHERE id <> $1 AND (LOWER(email) = $2 OR backup_email = $2)
+       LIMIT 1`,
+      [id, backupEmail],
+    );
+    if (taken.rows.length > 0) {
+      return res
+        .status(409)
+        .json({ error: "That email is already used by another account." });
+    }
+
+    const result = await db.query(
+      `UPDATE alumni SET backup_email = $1, last_modified = NOW()
+       WHERE id = $2 RETURNING backup_email`,
+      [backupEmail, id],
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === "23505") {
+      return res
+        .status(409)
+        .json({ error: "That email is already used by another account." });
+    }
+    console.error("Backup email update error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });

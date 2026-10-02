@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api";
-import { TAMU_DEGREES, DEGREE_TYPES } from "@/lib/degrees";
 import { SubmitEvent } from "react";
 
 export default function SignUp() {
@@ -15,11 +14,6 @@ export default function SignUp() {
     email: "",
     password: "",
     confirmPassword: "",
-    degree_level: "Undergraduate",
-    degree_name: "",
-    other_degree_name: "", // used when "Other" is selected
-    other_degree_type: "B.S.",
-    year_conferred: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -40,16 +34,6 @@ export default function SignUp() {
       return;
     }
 
-    const isOther = form.degree_name === "Other";
-    if (isOther && !form.other_degree_name.trim()) {
-      setError("Please type the name of your degree.");
-      return;
-    }
-    // Same format as the profile page, e.g. "Soil Science (M.S.)"
-    const degreeName = isOther
-      ? `${form.other_degree_name.trim()} (${form.other_degree_type})`
-      : form.degree_name;
-
     setSubmitting(true);
     try {
       const result = await fetchJson<{ emailRateLimited?: boolean }>("/api/alumni", {
@@ -61,9 +45,6 @@ export default function SignUp() {
           lastName: form.lastName,
           email: form.email,
           password: form.password,
-          degree_level: form.degree_level,
-          degree_name: degreeName,
-          year_conferred: form.year_conferred,
         }),
       });
       setEmailLimited(Boolean(result.emailRateLimited));
@@ -142,11 +123,9 @@ export default function SignUp() {
               className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             >
               <option value="Alumni">Alumni</option>
-              <option value="Undergraduate Student">
-                Undergraduate Student
+              <option value="Student">
+                Student
               </option>
-              <option value="Graduate Student">Graduate Student</option>
-              <option value="PhD Student">PhD Student</option>
             </select>
           </div>
 
@@ -187,93 +166,6 @@ export default function SignUp() {
               className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             />
           </div>
-          <div>
-            <label className="block text-lg font-medium text-gray-800 mb-1">
-              Degree Level
-            </label>
-            <select
-              value={form.degree_level}
-              onChange={(e) => handleChange("degree_level", e.target.value)}
-              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-            >
-              <option value="Undergraduate">Undergraduate</option>
-              <option value="Graduate">Graduate</option>
-              <option value="PhD">PhD</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-lg font-medium text-gray-800 mb-1">
-              Degree / Major
-            </label>
-            <select
-              required
-              value={form.degree_name}
-              onChange={(e) => handleChange("degree_name", e.target.value)}
-              className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
-            >
-              <option value="">-- Select Texas A&M Degree Program --</option>
-              {TAMU_DEGREES.map((deg) => (
-                <option key={deg} value={deg}>
-                  {deg}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {form.degree_name === "Other" && (
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2">
-                <label className="block text-lg font-medium text-gray-800 mb-1">
-                  Degree Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={form.other_degree_name}
-                  onChange={(e) =>
-                    handleChange("other_degree_name", e.target.value)
-                  }
-                  maxLength={100}
-                  className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-                  placeholder="e.g. Agricultural Engineering"
-                />
-              </div>
-              <div>
-                <label className="block text-lg font-medium text-gray-800 mb-1">
-                  Type
-                </label>
-                <select
-                  value={form.other_degree_type}
-                  onChange={(e) =>
-                    handleChange("other_degree_type", e.target.value)
-                  }
-                  className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
-                >
-                  {DEGREE_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-lg font-medium text-gray-800 mb-1">
-              Year Conferred
-            </label>
-            <input
-              type="text"
-              required
-              value={form.year_conferred}
-              onChange={(e) => handleChange("year_conferred", e.target.value)}
-              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-              placeholder="e.g. 1998"
-            />
-          </div>
-
           <div>
             <label className="block text-lg font-medium text-gray-800 mb-1">
               Password

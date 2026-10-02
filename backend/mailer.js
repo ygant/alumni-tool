@@ -44,7 +44,7 @@ async function sendVerificationEmail(to, name, link) {
     "Verify your email - BAEN Community",
     `
       <p>Hi ${name},</p>
-      <p>Thanks for signing up for joining the BAEN Community. Please confirm your email address by clicking the link below:</p>
+      <p>Thanks for joining the BAEN Community. Please confirm your email address by clicking the link below:</p>
       <p><a href="${link}">Verify My Email</a></p>
       <p>This link will expire in 24 hours.</p>
     `,

@@ -79,6 +79,7 @@ interface Profile {
   firstName: string;
   lastName: string;
   email: string;
+  backup_email: string | null;
   company: string | null;
   job_title: string | null;
   job_description: string | null;
@@ -152,6 +153,14 @@ export default function ProfilePage() {
   const [addingDegree, setAddingDegree] = useState(false);
   const [otherDegree, setOtherDegree] = useState({ name: "", type: "B.S." });
 
+  // ---- Login emails (main email is read-only; backup can also be used to log in) ----
+  const [mainEmail, setMainEmail] = useState("");
+  const [backupEmail, setBackupEmail] = useState("");
+  const [savedBackupEmail, setSavedBackupEmail] = useState("");
+  const [savingBackup, setSavingBackup] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+
   // ---- Load profile on mount ----
   useEffect(() => {
     const id = localStorage.getItem("alumniId");
@@ -195,6 +204,9 @@ export default function ProfilePage() {
           bio: blankIfNull(data.bio),
         });
         setDegrees(data.degrees);
+        setMainEmail(data.email);
+        setBackupEmail(blankIfNull(data.backup_email));
+        setSavedBackupEmail(blankIfNull(data.backup_email));
         setCompanies(companyList);
 
         if (data.work_country === "United States" && data.work_state) {
@@ -219,6 +231,35 @@ export default function ProfilePage() {
 
   const handleChange = (field: string, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Save or remove the backup email ("" removes it)
+  const saveBackupEmail = async (value: string) => {
+    if (!alumniId) return;
+    setSavingBackup(true);
+    setBackupMessage(null);
+    setBackupError(null);
+    try {
+      const result = await fetchJson<{ backup_email: string | null }>(
+        `/api/alumni/${alumniId}/backup-email`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ backup_email: value }),
+        },
+      );
+      const saved = result.backup_email ?? "";
+      setBackupEmail(saved);
+      setSavedBackupEmail(saved);
+      setBackupMessage(saved ? "✓ Backup email saved" : "✓ Backup email removed");
+      setTimeout(() => setBackupMessage(null), 3000);
+    } catch (err) {
+      setBackupError(
+        err instanceof Error ? err.message : "Failed to save backup email.",
+      );
+    } finally {
+      setSavingBackup(false);
+    }
   };
 
   const handleSave = async (
@@ -357,9 +398,8 @@ export default function ProfilePage() {
             onChange={(e) => handleChange("classification", e.target.value)}
             className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
           >
-            <option value="Undergraduate">Undergraduate Student</option>
-            <option value="Graduate">Graduate Student</option>
-            <option value="Alumni">Alumni / Former Student</option>
+            <option value="Student">Student</option>
+            <option value="Alumni">Alumni</option>
           </select>
         </div>
 
@@ -373,6 +413,70 @@ export default function ProfilePage() {
 
         {savedSection === "Status" && (
           <p className="text-green-700 font-medium mt-2">✓ Saved</p>
+        )}
+      </section>
+
+      {/* Login emails */}
+      <section className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Login Emails</h2>
+        <p className="text-gray-600 mb-4">
+          Add a backup email in case you lose access to your main one. You can
+          log in with either email. Login codes and password resets are always
+          sent to your main email.
+        </p>
+
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className="block text-lg font-medium text-gray-800 mb-1">
+              Main Email
+            </label>
+            <p className="w-full text-lg text-gray-700 bg-gray-100 border-2 border-gray-300 rounded-md p-3">
+              {mainEmail}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-lg font-medium text-gray-800 mb-1">
+              Backup Email
+            </label>
+            <input
+              type="email"
+              value={backupEmail}
+              onChange={(e) => setBackupEmail(e.target.value)}
+              maxLength={254}
+              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+              placeholder="e.g. yourname@gmail.com"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={() => saveBackupEmail(backupEmail)}
+            disabled={
+              savingBackup ||
+              backupEmail.trim().toLowerCase() === savedBackupEmail
+            }
+            className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+          >
+            {savingBackup ? "Saving..." : "Save Backup Email"}
+          </button>
+          {savedBackupEmail && (
+            <button
+              onClick={() => saveBackupEmail("")}
+              disabled={savingBackup}
+              className="px-6 py-3 rounded-md border-2 border-gray-400 text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+
+        {backupMessage && (
+          <p className="text-green-700 font-medium mt-2">{backupMessage}</p>
+        )}
+        {backupError && (
+          <p className="text-red-600 font-medium mt-2">{backupError}</p>
         )}
       </section>
 
@@ -546,17 +650,6 @@ export default function ProfilePage() {
               type="text"
               value={form.job_title}
               onChange={(e) => handleChange("job_title", e.target.value)}
-              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-            />
-          </div>
-          <div>
-            <label className="block text-lg font-medium text-gray-800 mb-1">
-              Job Description
-            </label>
-            <textarea
-              value={form.job_description}
-              onChange={(e) => handleChange("job_description", e.target.value)}
-              rows={3}
               className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
             />
           </div>
@@ -742,6 +835,20 @@ export default function ProfilePage() {
               BAEN Department Involvement & Opportunities
             </h2>
             <div className="flex flex-col gap-3">
+              <label className="block text-lg font-medium text-gray-800 mb-1">
+                Please select any areas of interest.
+              </label>
+              <label className="flex items-center gap-3 text-lg text-gray-800">
+                <input
+                    type="checkbox"
+                    checked={form.reconnect_baen}
+                    onChange={(e) =>
+                        handleChange("reconnect_baen", e.target.checked)
+                    }
+                    className="w-6 h-6"
+                />
+                Looking to Connect with Current Students
+              </label>
               <label className="flex items-center gap-3 text-lg text-gray-800">
                 <input
                   type="checkbox"
@@ -751,19 +858,7 @@ export default function ProfilePage() {
                   }
                   className="w-6 h-6"
                 />
-                My company has job/internship opportunities and is looking for
-                high-quality employees.
-              </label>
-              <label className="flex items-center gap-3 text-lg text-gray-800">
-                <input
-                  type="checkbox"
-                  checked={form.reconnect_baen}
-                  onChange={(e) =>
-                    handleChange("reconnect_baen", e.target.checked)
-                  }
-                  className="w-6 h-6"
-                />
-                Interested in reconnecting with the Texas A&M BAEN Department.
+                Employment or Internship Opportunities for BAEN Students
               </label>
               <label className="flex items-center gap-3 text-lg text-gray-800">
                 <input
@@ -774,7 +869,7 @@ export default function ProfilePage() {
                   }
                   className="w-6 h-6"
                 />
-                Interested in serving as a TAMU BAEN Capstone Project client.
+                Serving as a BAEN Capstone Project Sponsor/Client
               </label>
               <label className="flex items-center gap-3 text-lg text-gray-800">
                 <input
@@ -785,8 +880,7 @@ export default function ProfilePage() {
                   }
                   className="w-6 h-6"
                 />
-                Interested in participating in future BAEN department events and
-                activities.
+                Participating in BAEN events and activities
               </label>
               <label className="flex items-center gap-3 text-lg text-gray-800">
                 <input
@@ -797,8 +891,7 @@ export default function ProfilePage() {
                   }
                   className="w-6 h-6"
                 />
-                Interested in receiving regular updates and news from the BAEN
-                department.
+                Receiving BAEN news and updates
               </label>
               <label className="flex items-center gap-3 text-lg text-gray-800">
                 <input
@@ -809,7 +902,7 @@ export default function ProfilePage() {
                   }
                   className="w-6 h-6"
                 />
-                Interested in supporting BAEN department fundraising efforts.
+                Supporting BAEN fundraising initiatives
               </label>
               <label className="flex items-center gap-3 text-lg text-gray-800">
                 <input
@@ -820,8 +913,7 @@ export default function ProfilePage() {
                   }
                   className="w-6 h-6"
                 />
-                Interested in visiting department faculty, staff, and students
-                when in town.
+                Visiting with BAEN faculty, staff, and students
               </label>
             </div>
           </>
@@ -831,6 +923,9 @@ export default function ProfilePage() {
               Student Career Interests
             </h2>
             <div className="flex flex-col gap-3">
+              <label className="block text-lg font-medium text-gray-800 mb-1">
+                Select all that apply:
+              </label>
               <label className="flex items-center gap-3 text-lg text-gray-800">
                 <input
                   type="checkbox"
@@ -877,41 +972,6 @@ export default function ProfilePage() {
         </button>
 
         {savedSection === "Engagement" && (
-          <p className="text-green-700 font-medium mt-2">✓ Saved</p>
-        )}
-      </section>
-
-      {/* Bio */}
-      <section className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Short Bio</h2>
-        <textarea
-          value={form.bio}
-          onChange={(e) => {
-            const text = e.target.value;
-            const words = text.trim() === "" ? [] : text.trim().split(/\s+/);
-            if (words.length <= 300) {
-              handleChange("bio", text);
-            }
-          }}
-          rows={5}
-          className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-          placeholder="Tell us a bit about yourself..."
-        />
-
-        <p className="text-sm text-gray-600 mt-2">
-          {form.bio.trim() === "" ? 0 : form.bio.trim().split(/\s+/).length} /
-          300 words
-        </p>
-
-        <button
-          onClick={(e) => handleSave(e, "Bio")}
-          disabled={saving === "Bio"}
-          className="flex justify-start mt-4 gap-2 bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
-        >
-          {saving === "Bio" ? "Saving..." : "Save Changes"}
-        </button>
-
-        {savedSection === "Bio" && (
           <p className="text-green-700 font-medium mt-2">✓ Saved</p>
         )}
       </section>
